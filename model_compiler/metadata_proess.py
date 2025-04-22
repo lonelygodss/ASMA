@@ -510,7 +510,7 @@ def visualize_compiled_model_simple(compiled_model: CompiledModel, filename: str
 def get_coord_tuple(tensor_id: TensorId) -> Tuple:
     """Helper to convert TensorId to a hashable tuple of coordinates"""
     # Sort keys to ensure consistent order
-    return tuple(tensor_id.coords.get(k, None) for k in sorted(tensor_id.coords.keys()))
+    return tuple((k, tensor_id.coords.get(k, None)) for k in sorted(tensor_id.coords.keys()))
 
 
 def parse_compute_graph(compiled_model: CompiledModel) -> Dict:
@@ -559,36 +559,36 @@ def parse_compute_graph(compiled_model: CompiledModel) -> Dict:
         # Track inputs and outputs for this subfunction
         input_tensors = []
         for input_tensor in subfunc.input_tensors:
-            tensor_id = get_coord_tuple(input_tensor.tensor_id)
+            tensor_id_tuple = get_coord_tuple(input_tensor.tensor_id)
             
             # Add to tensors set
-            connection_info['tensors'].add(tensor_id)
+            connection_info['tensors'].add(tensor_id_tuple)
             
             # Add to tensor consumers
-            if tensor_id not in connection_info['tensor_consumers']:
-                connection_info['tensor_consumers'][tensor_id] = []
-            connection_info['tensor_consumers'][tensor_id].append(subfunction_id)
+            if tensor_id_tuple not in connection_info['tensor_consumers']:
+                connection_info['tensor_consumers'][tensor_id_tuple] = []
+            connection_info['tensor_consumers'][tensor_id_tuple].append(subfunction_id)
             
             # Add tensor details
             tensor_info = {
-                'tensor_id': tensor_id,
+                'tensor_id': tensor_id_tuple,
                 **input_tensor.size_params
             }
             input_tensors.append(tensor_info)
         
         output_tensors = []
         for output_tensor in subfunc.output_tensors:
-            tensor_id = get_coord_tuple(output_tensor.tensor_id)
+            tensor_id_tuple = get_coord_tuple(output_tensor.tensor_id)
             
             # Add to tensors set
-            connection_info['tensors'].add(tensor_id)
+            connection_info['tensors'].add(tensor_id_tuple)
             
             # Set tensor producer
-            connection_info['tensor_producers'][tensor_id] = subfunction_id
+            connection_info['tensor_producers'][tensor_id_tuple] = subfunction_id
             
             # Add tensor details
             tensor_info = {
-                'tensor_id': tensor_id,
+                'tensor_id': tensor_id_tuple,
                 **output_tensor.size_params
             }
             output_tensors.append(tensor_info)
@@ -631,7 +631,6 @@ def parse_compute_graph(compiled_model: CompiledModel) -> Dict:
     return connection_info
 
 
-# The rest of the functions remain largely the same, just adapted for the new coordinate system
 def extract_data_flow_paths(connection_info: Dict) -> List[Dict]:
     """
     Extract data flow paths from connection information
@@ -650,13 +649,13 @@ def extract_data_flow_paths(connection_info: Dict) -> List[Dict]:
         node_id = node['id']
         has_internal_inputs = False
         
-        for input_tensor in connection_info['subfunction_inputs'][node_id]:
+        for input_tensor in connection_info['subfunction_inputs'].get(node_id, []):
             tensor_id = input_tensor['tensor_id']
             if tensor_id in connection_info['tensor_producers']:
                 has_internal_inputs = True
                 break
         
-        if not has_internal_inputs:
+        if not has_internal_inputs and connection_info['subfunction_inputs'].get(node_id, []):
             source_nodes.append(node_id)
     
     # For each source node, trace all possible paths
@@ -682,7 +681,7 @@ def trace_paths(current_node: str, current_path: List[str],
     
     # Find all output tensors from this node
     output_tensors = []
-    for output_tensor in connection_info['subfunction_outputs'][current_node]:
+    for output_tensor in connection_info['subfunction_outputs'].get(current_node, []):
         tensor_id = output_tensor['tensor_id']
         output_tensors.append(tensor_id)
     
@@ -696,37 +695,40 @@ def trace_paths(current_node: str, current_path: List[str],
     
     if not next_nodes:
         # This is a sink node, add the complete path
-        node_details = []
-        tensor_transfers = []
-        
-        # Add node details
-        for node_id in path:
-            for node in connection_info['nodes']:
-                if node['id'] == node_id:
-                    node_details.append(node)
-                    break
-        
-        # Add tensor transfers between nodes
-        for i in range(len(path) - 1):
-            producer = path[i]
-            consumer = path[i + 1]
+        if len(path) > 1:  # Only add paths with at least two nodes
+            node_details = []
+            tensor_transfers = []
             
-            # Find tensors that flow from producer to consumer
-            for output_tensor in connection_info['subfunction_outputs'][producer]:
-                tensor_id = output_tensor['tensor_id']
-                if tensor_id in connection_info['tensor_consumers'] and consumer in connection_info['tensor_consumers'][tensor_id]:
-                    size_info = {k: v for k, v in output_tensor.items() if k != 'tensor_id'}
-                    tensor_transfers.append({
-                        'from': producer,
-                        'to': consumer,
-                        'tensor_id': tensor_id,
-                        **size_info
-                    })
-        
-        all_paths.append({
-            'nodes': node_details,
-            'transfers': tensor_transfers
-        })
+            # Add node details
+            for node_id in path:
+                for node in connection_info['nodes']:
+                    if node['id'] == node_id:
+                        node_details.append(node)
+                        break
+            
+            # Add tensor transfers between nodes
+            for i in range(len(path) - 1):
+                producer = path[i]
+                consumer = path[i + 1]
+                
+                # Find tensors that flow from producer to consumer
+                for output_tensor in connection_info['subfunction_outputs'].get(producer, []):
+                    tensor_id = output_tensor['tensor_id']
+                    consumers = connection_info['tensor_consumers'].get(tensor_id, [])
+                    if consumer in consumers:
+                        size_info = {k: v for k, v in output_tensor.items() if k != 'tensor_id'}
+                        tensor_transfers.append({
+                            'from': producer,
+                            'to': consumer,
+                            'tensor_id': str(tensor_id),  # Convert to string for JSON serialization
+                            **size_info
+                        })
+            
+            all_paths.append({
+                'nodes': node_details,
+                'transfers': tensor_transfers,
+                'length': len(path)
+            })
     else:
         # Continue tracing paths
         for next_node in next_nodes:
@@ -820,19 +822,47 @@ def visualize_compute_graph_graphviz(connection_info: Dict, output_file: str = '
                 with c.subgraph(name=f'cluster_{op_type}_{stage}') as c2:
                     c2.attr(label=f'{op_type}', style='filled', color=op_colors.get(op_type, 'white'))
                     
-                    # Add nodes
+                    # Group by k value (parallel groups) if present
+                    nodes_by_k = {}
                     for node in op_nodes:
-                        node_id = node['id']
-                        coords = node['coordinates']
-                        i = coords.get('i', 0)
-                        j = coords.get('j', 0)
-                        label = f"{op_type}\n({i},{j})"
-                        
-                        if node['shape']:
-                            label += f"\n{node['shape'][0]}×{node['shape'][1]}"
-                        
-                        c2.node(node_id, label, shape='box', style='filled', 
-                               fillcolor=op_colors.get(op_type, 'white'))
+                        k = node['coordinates'].get('k', 0)
+                        if k not in nodes_by_k:
+                            nodes_by_k[k] = []
+                        nodes_by_k[k].append(node)
+                    
+                    # Process each k group
+                    for k, k_nodes in sorted(nodes_by_k.items()):
+                        if len(nodes_by_k) > 1:  # Only create subcluster if multiple k values
+                            with c2.subgraph(name=f'cluster_k_{k}_{op_type}_{stage}') as c3:
+                                c3.attr(label=f'k={k}', style='filled', color='lightgray')
+                                
+                                # Add nodes
+                                for node in k_nodes:
+                                    node_id = node['id']
+                                    coords = node['coordinates']
+                                    i = coords.get('i', 0)
+                                    j = coords.get('j', 0)
+                                    label = f"{op_type}\n({i},{j})"
+                                    
+                                    if node['shape']:
+                                        label += f"\n{node['shape'][0]}×{node['shape'][1]}"
+                                    
+                                    c3.node(node_id, label, shape='box', style='filled', 
+                                           fillcolor=op_colors.get(op_type, 'white'))
+                        else:
+                            # Add nodes directly if only one k value
+                            for node in k_nodes:
+                                node_id = node['id']
+                                coords = node['coordinates']
+                                i = coords.get('i', 0)
+                                j = coords.get('j', 0)
+                                label = f"{op_type}\n({i},{j})"
+                                
+                                if node['shape']:
+                                    label += f"\n{node['shape'][0]}×{node['shape'][1]}"
+                                
+                                c2.node(node_id, label, shape='box', style='filled', 
+                                       fillcolor=op_colors.get(op_type, 'white'))
     
     # Add edges
     for tensor_id, consumers in connection_info['tensor_consumers'].items():
@@ -841,7 +871,7 @@ def visualize_compute_graph_graphviz(connection_info: Dict, output_file: str = '
             for consumer in consumers:
                 # Find tensor size for edge label
                 size_info = ""
-                for output_tensor in connection_info['subfunction_outputs'][producer]:
+                for output_tensor in connection_info['subfunction_outputs'].get(producer, []):
                     if output_tensor['tensor_id'] == tensor_id:
                         size_h = output_tensor.get('size_h')
                         size_v = output_tensor.get('size_v')
@@ -873,7 +903,9 @@ def analyze_compute_graph(connection_info: Dict) -> Dict:
         'data_transfer_volume': 0,
         'critical_path_length': 0,
         'max_fanout': 0,
-        'max_fanin': 0
+        'max_fanin': 0,
+        'stage_counts': {},
+        'parallel_counts': {}
     }
     
     # Count operation types
@@ -883,18 +915,52 @@ def analyze_compute_graph(connection_info: Dict) -> Dict:
             analysis['op_type_counts'][op_type] = 0
         analysis['op_type_counts'][op_type] += 1
     
+    # Count operations by stage
+    for stage, nodes in connection_info['sequential_stages'].items():
+        analysis['stage_counts'][stage] = len(nodes)
+    
+    # Count operations by parallel group
+    for group, nodes in connection_info['parallel_groups'].items():
+        analysis['parallel_counts'][group] = len(nodes)
+    
     # Calculate data transfer volume
-    for path in connection_info['data_flow_paths']:
+    for path in connection_info.get('data_flow_paths', []):
         for transfer in path.get('transfers', []):
-            size_h = transfer.get('size_h', 1)
-            size_v = transfer.get('size_v', 1)
-            if size_h is not None and size_v is not None:
+            # Extract size parameters properly
+            try:
+                size_h = transfer.get('size_h', 1)
+                size_v = transfer.get('size_v', 1)
+                
+                # Check if we got valid numeric values
+                if isinstance(size_h, dict) or isinstance(size_v, dict):
+                    # If it's a dictionary, try to extract the actual values
+                    if isinstance(size_h, dict) and 'size_h' in size_h:
+                        size_h = size_h['size_h']
+                    else:
+                        size_h = 1
+                        
+                    if isinstance(size_v, dict) and 'size_v' in size_v:
+                        size_v = size_v['size_v']
+                    else:
+                        size_v = 1
+                
+                # Convert to integers if they're strings
+                if isinstance(size_h, str):
+                    size_h = int(size_h)
+                if isinstance(size_v, str):
+                    size_v = int(size_v)
+                    
                 analysis['data_transfer_volume'] += size_h * size_v
+            except (TypeError, ValueError) as e:
+                print(f"Warning: Error calculating data transfer volume for tensor: {transfer.get('tensor_id', 'unknown')}")
+                print(f"Size parameters: size_h={transfer.get('size_h')}, size_v={transfer.get('size_v')}")
+                print(f"Error: {e}")
+                # Continue with next transfer
     
     # Find critical path length
     max_path_length = 0
-    for path in connection_info['data_flow_paths']:
-        path_length = len(path.get('nodes', []))
+    for path in connection_info.get('data_flow_paths', []):
+        path_length = path.get('length', 0)
         max_path_length = max(max_path_length, path_length)
     analysis['critical_path_length'] = max_path_length
     
@@ -907,3 +973,139 @@ def analyze_compute_graph(connection_info: Dict) -> Dict:
         analysis['max_fanin'] = max(analysis['max_fanin'], len(inputs))
     
     return analysis
+
+
+def load_compute_graph(filename: str) -> Dict:
+    """
+    Load a saved compute graph from a file
+    
+    Args:
+        filename: Path to the JSON file
+        
+    Returns:
+        Loaded connection information dictionary
+    """
+    import json
+    
+    with open(filename, 'r') as f:
+        connection_info = json.load(f)
+    
+    # Convert string tensor IDs back to tuples
+    tensors = set()
+    for tensor_str in connection_info['tensors']:
+        tensors.add(tuple(tensor_str))
+    connection_info['tensors'] = tensors
+    
+    # Convert string keys back to tuples for tensor_producers
+    tensor_producers = {}
+    for tensor_str, producer in connection_info['tensor_producers'].items():
+        # Parse the string representation of the tuple
+        tensor_id = eval(tensor_str)  # Safe since we generated this string ourselves
+        tensor_producers[tensor_id] = producer
+    connection_info['tensor_producers'] = tensor_producers
+    
+    # Convert string keys back to tuples for tensor_consumers
+    tensor_consumers = {}
+    for tensor_str, consumers in connection_info['tensor_consumers'].items():
+        # Parse the string representation of the tuple
+        tensor_id = eval(tensor_str)  # Safe since we generated this string ourselves
+        tensor_consumers[tensor_id] = consumers
+    connection_info['tensor_consumers'] = tensor_consumers
+    
+    # Convert string keys back to tuples for spatial_mapping
+    spatial_mapping = {}
+    for coords_str, nodes in connection_info['spatial_mapping'].items():
+        # Parse the string representation of the tuple
+        coords = eval(coords_str)  # Safe since we generated this string ourselves
+        spatial_mapping[coords] = nodes
+    connection_info['spatial_mapping'] = spatial_mapping
+    
+    return connection_info
+
+
+def tensor_id_from_tuple(tuple_data: Tuple) -> TensorId:
+    """
+    Convert a coordinate tuple back to a TensorId object
+    
+    Args:
+        tuple_data: Tuple of (key, value) pairs
+    
+    Returns:
+        Equivalent TensorId object
+    """
+    coords = {}
+    for key, value in tuple_data:
+        if value is not None:  # Skip None values
+            coords[key] = value
+    return TensorId(**coords)
+
+
+def export_model_to_hardware_spec(connection_info: Dict, output_file: str):
+    """
+    Export the compiled model to a hardware-specific format
+    
+    Args:
+        connection_info: Connection information dictionary
+        output_file: Output file path
+    """
+    import json
+    
+    # Create hardware configuration
+    hw_config = {
+        "model_name": "compiled_model",
+        "hardware_spec": {
+            "computing_units": [],
+            "memory_units": [],
+            "connections": []
+        },
+        "mapping": {
+            "operations": {},
+            "data": {}
+        },
+        "execution_sequence": []
+    }
+    
+    # Create computing units for each node
+    for i, node in enumerate(connection_info['nodes']):
+        unit_id = f"cu_{i}"
+        hw_config["hardware_spec"]["computing_units"].append({
+            "id": unit_id,
+            "type": node['op_type'],
+            "coordinates": node['coordinates']
+        })
+        hw_config["mapping"]["operations"][node['id']] = unit_id
+    
+    # Create memory units for each tensor
+    for i, tensor_id in enumerate(connection_info['tensors']):
+        unit_id = f"mem_{i}"
+        hw_config["hardware_spec"]["memory_units"].append({
+            "id": unit_id,
+            "tensor_id": str(tensor_id)
+        })
+        hw_config["mapping"]["data"][str(tensor_id)] = unit_id
+    
+    # Create connections between producing and consuming units
+    for tensor_id, consumers in connection_info['tensor_consumers'].items():
+        producer = connection_info['tensor_producers'].get(tensor_id)
+        if producer:
+            for consumer in consumers:
+                hw_config["hardware_spec"]["connections"].append({
+                    "from": hw_config["mapping"]["operations"][producer],
+                    "to": hw_config["mapping"]["operations"][consumer],
+                    "tensor_id": str(tensor_id)
+                })
+    
+    # Create execution sequence based on sequential stages
+    stages = sorted(connection_info['sequential_stages'].keys())
+    for stage in stages:
+        stage_ops = connection_info['sequential_stages'][stage]
+        hw_config["execution_sequence"].append({
+            "stage": stage,
+            "operations": stage_ops
+        })
+    
+    # Save to file
+    with open(output_file, 'w') as f:
+        json.dump(hw_config, f, indent=2)
+    
+    print(f"Hardware specification exported to {output_file}")

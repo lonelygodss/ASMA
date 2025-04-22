@@ -386,6 +386,7 @@ class FunctionWiseCompiler(CompilerBase):
         """
         Handle down projection MVM specifically.
         This processes the result of the GLU operation back to the model dimension.
+        Note that for down projection, the array dimensions are swapped.
         
         Args:
             function: Down projection function
@@ -400,8 +401,8 @@ class FunctionWiseCompiler(CompilerBase):
         base_coords = function.coords.copy()
         
         # Calculate number of divisions needed
-        h_divisions = (output_dim + self.array_h - 1) // self.array_h
-        v_divisions = (input_dim + self.array_v - 1) // self.array_v
+        h_divisions = (output_dim + self.array_v - 1) // self.array_v
+        v_divisions = (input_dim + self.array_h - 1) // self.array_h
         
         # Step 1: Create compute subfunctions for each division
         compute_subfuncs = []
@@ -413,10 +414,10 @@ class FunctionWiseCompiler(CompilerBase):
             
             for j in range(h_divisions):
                 # Calculate the actual dimensions of this submatrix
-                start_h = j * self.array_h
-                end_h = min((j + 1) * self.array_h, output_dim)
-                start_v = i * self.array_v
-                end_v = min((i + 1) * self.array_v, input_dim)
+                start_h = j * self.array_v
+                end_h = min((j + 1) * self.array_v, output_dim)
+                start_v = i * self.array_h
+                end_v = min((i + 1) * self.array_h, input_dim)
                 
                 slice_h = end_h - start_h
                 slice_v = end_v - start_v
@@ -467,7 +468,7 @@ class FunctionWiseCompiler(CompilerBase):
         add_output_tensors = []
         
         for j in range(h_divisions):
-            start_h = j * self.array_h
+            start_h = j * self.array_v
             end_h = min((j + 1) * self.array_h, output_dim)
             slice_h = end_h - start_h
             add_j = j + 1  # Base index for addition operations

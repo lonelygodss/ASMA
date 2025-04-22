@@ -12,17 +12,17 @@ def main():
     layer_idx = 1      # First decoder layer
     
     # Define hardware constraints
-    array_h = 2048      # Horizontal size of CIM array
+    array_h = 1024      # Horizontal size of CIM array
     array_v = 2048      # Vertical size of CIM array
     
     # version control
-    filename = "parallel/"
+    filename = "parallel_d2/"
 
     # file separation from git
     filedir = "compiled_model/"+filename
 
     # Generate outputfile or not
-    data_flag = True
+    data_flag = False
 
     # Create model
     model = create_glu_ffn_model(hidden_dim, ffn_dim, layer_idx)
@@ -57,6 +57,9 @@ def main():
     # if len(compiled_model.subfunctions) > 50:
     #     print(f"  ... and {len(compiled_model.subfunctions) - 50} more")
 
+    # Parse and analyze the compute graph
+    connection_info = dataproc.parse_compute_graph(compiled_model)
+
     if data_flag:
         # Visualize the compiled model with shorter labels
         dataproc.visualize_compiled_model(compiled_model, filedir+ "ffn_compiled_model")
@@ -66,23 +69,21 @@ def main():
         # Simplified visualization focusing on dataflow
         dataproc.visualize_compiled_model_simple(compiled_model, filedir+ "ffn_compiled_model_simple")
 
-        # Parse and analyze the compute graph
-        connection_info = dataproc.parse_compute_graph(compiled_model)    
         # Save the compute graph
         dataproc.save_compute_graph(connection_info, filedir+ "ffn_compute_graph.json")
         # Visualize the compute graph
         dataproc.visualize_compute_graph_graphviz(connection_info, filedir+ "ffn_compute_graph_graphviz")
     
-    # # Analyze the compute graph
-    # analysis = dataproc.analyze_compute_graph(connection_info)
-    # print("\nCompute Graph Analysis:")
-    # for key, value in dataproc.analysis.items():
-    #     if isinstance(value, dict):
-    #         print(f"  {key}:")
-    #         for k, v in value.items():
-    #             print(f"    {k}: {v}")
-    #     else:
-    #         print(f"  {key}: {value}")
+    # Analyze the compute graph
+    analysis = dataproc.analyze_compute_graph(connection_info)
+    print("\nCompute Graph Analysis:")
+    for key, value in analysis.items():  # Fixed: using analysis instead of dataproc.analysis
+        if isinstance(value, dict):
+            print(f"  {key}:")
+            for k, v in value.items():
+                print(f"    {k}: {v}")
+        else:
+            print(f"  {key}: {value}")
 
 if __name__ == "__main__":
     main()
