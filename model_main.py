@@ -1,5 +1,5 @@
 from model_compiler.GLU_ffn import create_glu_ffn_model
-from model_compiler.function_wise_compiler import FunctionWiseCompiler
+from model_compiler.parallel_compiler import FunctionWiseCompiler
 import model_compiler.metadata_proess as dataproc
 
 
