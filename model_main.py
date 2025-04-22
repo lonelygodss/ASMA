@@ -18,7 +18,7 @@ def main():
     filename = "v1"
 
     # file separation from git
-    filedir = "../compiled_model/"
+    filedir = "compiled_model/"
 
 
     # Create model
@@ -57,11 +57,11 @@ def main():
     # # Visualize the compiled model with shorter labels
     dataproc.visualize_compiled_model(compiled_model, filedir+ "ffn_compiled_model"+filename)
     
-    # # Alternative layered visualization with shorter labels
-    # dataproc.visualize_compiled_model_layered(compiled_model, filedir+ "ffn_compiled_model_layered"+filename)
+    # Alternative layered visualization with shorter labels
+    dataproc.visualize_compiled_model_layered(compiled_model, filedir+ "ffn_compiled_model_layered"+filename)
     
-    # # Simplified visualization focusing on dataflow
-    # dataproc.visualize_compiled_model_simple(compiled_model, firledir+ "ffn_compiled_model_simple"+filename)
+    # Simplified visualization focusing on dataflow
+    dataproc.visualize_compiled_model_simple(compiled_model, filedir+ "ffn_compiled_model_simple"+filename)
 
     # Parse and analyze the compute graph
     connection_info = dataproc.parse_compute_graph(compiled_model)    
