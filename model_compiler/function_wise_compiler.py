@@ -1,16 +1,19 @@
-# Implementation of specific compiler strategy for GLU-FFN using the base compiler
+# Function-wise compiler that handles each function in the GLU-FFN model with specialized methods
 
 from model_compiler.utils import OperationType, TensorId, Function, Model, CompiledModel
 from model_compiler.compiler_base import CompilerBase
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 
 
-class Compiler(CompilerBase):
-    """Specific compiler implementation that divides the model according to hardware constraints"""
+class FunctionWiseCompiler(CompilerBase):
+    """
+    Compiler that handles each function in the GLU-FFN model with specialized methods.
+    This gives more granular control over the compilation process for different function types.
+    """
     
     def divide_model(self, model: Model) -> CompiledModel:
         """
-        Divide the model according to hardware constraints
+        Process each function in the model with a specialized method based on function type.
         
         Args:
             model: High-level model description
@@ -20,23 +23,165 @@ class Compiler(CompilerBase):
         """
         compiled_model = CompiledModel()
         
-        # Process each function in the model
+        # Dictionary mapping function name patterns to handler methods
+        handlers = {
+            # MVM functions in a GLU-FFN architecture
+            "gate_proj": self._divide_gate_proj,
+            "up_proj": self._divide_up_proj,
+            "down_proj": self._divide_down_proj,
+            
+            # Element-wise operations
+            "glu": self._divide_glu,
+            "activation": self._divide_activation,
+            "trivial_copy": self._divide_trivial_copy,
+            "dot_product": self._divide_dot_product,
+        }
+        
+        # Process each function with its specific handler if available
         for function in model.functions:
-            if function.op_type == OperationType.MVM:
-                self._divide_mvm(function, compiled_model)
-            elif function.op_type in [OperationType.ACTIVATION, OperationType.TRIVIAL_COPY, 
-                                     OperationType.DOT_PRODUCT, OperationType.GLU]:
-                self._divide_elementwise(function, compiled_model)
+            # Try to find a specific handler for this function based on name or pattern
+            handler = None
+            for pattern, method in handlers.items():
+                if pattern in function.name.lower():
+                    handler = method
+                    break
+            
+            # Fall back to operation type if no name-based handler is found
+            if handler is None:
+                if function.op_type == OperationType.MVM:
+                    handler = self._divide_generic_mvm
+                elif function.op_type == OperationType.GLU:
+                    handler = self._divide_glu
+                elif function.op_type == OperationType.ACTIVATION:
+                    handler = self._divide_activation
+                elif function.op_type == OperationType.TRIVIAL_COPY:
+                    handler = self._divide_trivial_copy
+                elif function.op_type == OperationType.DOT_PRODUCT:
+                    handler = self._divide_dot_product
+                else:
+                    # Generic handling for any other function type
+                    handler = self._divide_generic_function
+            
+            # Apply the selected handler
+            handler(function, compiled_model)
         
         # Build the dependency graph
         compiled_model.build_dependency_graph()
         
         return compiled_model
-
-    def _divide_mvm(self, function: Function, compiled_model: CompiledModel):
-        """Divide an MVM function into subfunctions based on array size constraints"""
+    
+    def _divide_gate_proj(self, function: Function, compiled_model: CompiledModel):
+        """
+        Handle gate projection MVM specifically.
+        This produces the gating part of the GLU mechanism.
+        
+        Args:
+            function: Gate projection function
+            compiled_model: Compiled model to add subfunctions to
+        """
+        print(f"Processing gate projection: {function.name}")
+        # Use base MVM division logic but with specific metadata for gate projection
+        self._divide_generic_mvm(function, compiled_model)
+    
+    def _divide_up_proj(self, function: Function, compiled_model: CompiledModel):
+        """
+        Handle up projection MVM specifically.
+        This produces the input for the GLU element-wise multiplication.
+        
+        Args:
+            function: Up projection function
+            compiled_model: Compiled model to add subfunctions to
+        """
+        print(f"Processing up projection: {function.name}")
+        # Use base MVM division logic but with specific metadata for up projection
+        self._divide_generic_mvm(function, compiled_model)
+    
+    def _divide_down_proj(self, function: Function, compiled_model: CompiledModel):
+        """
+        Handle down projection MVM specifically.
+        This processes the result of the GLU operation back to the model dimension.
+        
+        Args:
+            function: Down projection function
+            compiled_model: Compiled model to add subfunctions to
+        """
+        print(f"Processing down projection: {function.name}")
+        # Use base MVM division logic but with specific metadata for down projection
+        self._divide_generic_mvm(function, compiled_model)
+    
+    def _divide_glu(self, function: Function, compiled_model: CompiledModel):
+        """
+        Handle GLU operation specifically.
+        This combines gate and input projections using element-wise multiplication.
+        
+        Args:
+            function: GLU function
+            compiled_model: Compiled model to add subfunctions to
+        """
+        print(f"Processing GLU operation: {function.name}")
+        # Use elementwise division logic for GLU
+        self._divide_generic_elementwise(function, compiled_model, is_glu=True)
+    
+    def _divide_activation(self, function: Function, compiled_model: CompiledModel):
+        """
+        Handle activation function specifically.
+        
+        Args:
+            function: Activation function
+            compiled_model: Compiled model to add subfunctions to
+        """
+        print(f"Processing activation: {function.name}")
+        # Use elementwise division logic for activation
+        self._divide_generic_elementwise(function, compiled_model)
+    
+    def _divide_trivial_copy(self, function: Function, compiled_model: CompiledModel):
+        """
+        Handle trivial copy specifically.
+        
+        Args:
+            function: Trivial copy function
+            compiled_model: Compiled model to add subfunctions to
+        """
+        print(f"Processing trivial copy: {function.name}")
+        # Use elementwise division logic for trivial copy
+        self._divide_generic_elementwise(function, compiled_model)
+    
+    def _divide_dot_product(self, function: Function, compiled_model: CompiledModel):
+        """
+        Handle dot product specifically.
+        
+        Args:
+            function: Dot product function
+            compiled_model: Compiled model to add subfunctions to
+        """
+        print(f"Processing dot product: {function.name}")
+        # Use elementwise division logic for dot product
+        self._divide_generic_elementwise(function, compiled_model)
+    
+    def _divide_generic_function(self, function: Function, compiled_model: CompiledModel):
+        """
+        Generic handler for functions without a specialized handler.
+        
+        Args:
+            function: Function to process
+            compiled_model: Compiled model to add subfunctions to
+        """
+        print(f"Processing generic function: {function.name} with op type: {function.op_type}")
+        if function.op_type == OperationType.MVM:
+            self._divide_generic_mvm(function, compiled_model)
+        else:
+            self._divide_generic_elementwise(function, compiled_model)
+    
+    def _divide_generic_mvm(self, function: Function, compiled_model: CompiledModel):
+        """
+        Generic implementation for dividing MVM functions.
+        
+        Args:
+            function: MVM function to process
+            compiled_model: Compiled model to add subfunctions to
+        """
         if not function.shape:
-            raise ValueError(f"Function {function} has no shape defined, required for MVM division")
+            raise ValueError(f"Function {function.name} has no shape defined, required for MVM division")
             
         input_dim, output_dim = function.shape
         base_coords = function.coords.copy()
@@ -174,9 +319,16 @@ class Compiler(CompilerBase):
         
         # Step 5: Add pass function to next step
         self._add_pass_function(function, compiled_model, output_dim)
-
-    def _divide_elementwise(self, function: Function, compiled_model: CompiledModel):
-        """Divide element-wise operations (activation, GLU, etc.) into subfunctions"""
+    
+    def _divide_generic_elementwise(self, function: Function, compiled_model: CompiledModel, is_glu: bool = False):
+        """
+        Generic implementation for dividing element-wise operations.
+        
+        Args:
+            function: Element-wise function to process
+            compiled_model: Compiled model to add subfunctions to
+            is_glu: Whether this is a GLU operation (needing two inputs)
+        """
         base_coords = function.coords.copy()
         
         # Determine the output dimension
@@ -223,7 +375,7 @@ class Compiler(CompilerBase):
             compiled_model.add_subfunction(subfunc)
         
         # Step 2: Handle different distribution needs for GLU vs. other operations
-        if function.op_type == OperationType.GLU:
+        if is_glu or function.op_type == OperationType.GLU:
             # GLU needs two distribution functions (one for each input)
             for k_idx in [1, 2]:  # GLU has two inputs
                 k_key = 'k'
@@ -302,4 +454,3 @@ class Compiler(CompilerBase):
         
         # Step 4: Add pass function to next step
         self._add_pass_function(function, compiled_model, output_dim)
-

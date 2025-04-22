@@ -61,8 +61,9 @@ class TensorWithSize:
 
 class Function:
     """High-level function in the model (before division)"""
-    def __init__(self, op_type: OperationType, **coords):
+    def __init__(self, op_type: OperationType, name: str = "", **coords):
         self.op_type = op_type
+        self.name = name      # Add name attribute
         self.coords = coords  # Store all coordinates as a dictionary
         self.shape = None     # For operations with shape requirements
         self.metadata = {}    # Additional metadata for the function
@@ -82,7 +83,8 @@ class Function:
     def __str__(self):
         coords_str = ", ".join(f"{k}={v}" for k, v in sorted(self.coords.items()))
         shape_info = f", shape={self.shape}" if self.shape else ""
-        return f"Function({coords_str}, op={self.op_type.value}{shape_info})"
+        name_info = f", name='{self.name}'" if self.name else ""
+        return f"Function({coords_str}, op={self.op_type.value}{shape_info}{name_info})"
 
 
 class SubFunction:

@@ -1,5 +1,5 @@
 from model_compiler.GLU_ffn import create_glu_ffn_model
-from model_compiler.basic_compiler import Compiler
+from model_compiler.function_wise_compiler import FunctionWiseCompiler
 import model_compiler.metadata_proess as dataproc
 
 
@@ -15,11 +15,13 @@ def main():
     array_v = 2048      # Vertical size of CIM array
     
     # version control
-    filename = "v1"
+    filename = "funcwise/"
 
     # file separation from git
-    filedir = "../compiled_model/"
+    filedir = "../compiled_model/"+filename
 
+    # Generate outputfile or not
+    data_flag = True
 
     # Create model
     model = create_glu_ffn_model(hidden_dim, ffn_dim, layer_idx)
@@ -28,7 +30,7 @@ def main():
     print("\n" + "="*80 + "\n")
     
     # Compile model
-    compiler = Compiler(array_h, array_v)
+    compiler = FunctionWiseCompiler(array_h, array_v)
     compiled_model = compiler.divide_model(model)
     
     print("Compiled Model:")
@@ -54,22 +56,21 @@ def main():
     # if len(compiled_model.subfunctions) > 50:
     #     print(f"  ... and {len(compiled_model.subfunctions) - 50} more")
 
-    # # Visualize the compiled model with shorter labels
-    dataproc.visualize_compiled_model(compiled_model, filedir+ "ffn_compiled_model"+filename)
+    if data_flag:
+        # Visualize the compiled model with shorter labels
+        dataproc.visualize_compiled_model(compiled_model, filedir+ "ffn_compiled_model")
+        # Alternative layered visualization with shorter labels
+        dataproc.visualize_compiled_model_layered(compiled_model, filedir+ "ffn_compiled_model_layered")
     
-    # Alternative layered visualization with shorter labels
-    dataproc.visualize_compiled_model_layered(compiled_model, filedir+ "ffn_compiled_model_layered"+filename)
-    
-    # Simplified visualization focusing on dataflow
-    dataproc.visualize_compiled_model_simple(compiled_model, filedir+ "ffn_compiled_model_simple"+filename)
+        # Simplified visualization focusing on dataflow
+        dataproc.visualize_compiled_model_simple(compiled_model, filedir+ "ffn_compiled_model_simple")
 
-    # Parse and analyze the compute graph
-    connection_info = dataproc.parse_compute_graph(compiled_model)    
-    # Save the compute graph
-    dataproc.save_compute_graph(connection_info, filedir+ "ffn_compute_graph.json"+filename)
-    
-    # Visualize the compute graph
-    dataproc.visualize_compute_graph_graphviz(connection_info, filedir+ "ffn_compute_graph_graphviz"+filename)
+        # Parse and analyze the compute graph
+        connection_info = dataproc.parse_compute_graph(compiled_model)    
+        # Save the compute graph
+        dataproc.save_compute_graph(connection_info, filedir+ "ffn_compute_graph.json")
+        # Visualize the compute graph
+        dataproc.visualize_compute_graph_graphviz(connection_info, filedir+ "ffn_compute_graph_graphviz")
     
     # # Analyze the compute graph
     # analysis = dataproc.analyze_compute_graph(connection_info)
