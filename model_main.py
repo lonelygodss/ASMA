@@ -1,5 +1,5 @@
 from model_compiler.GLU_ffn import create_glu_ffn_model
-from model_compiler.parallel_compiler import FunctionWiseCompiler
+from model_compiler.parallel_compiler import FunctionWiseCompiler as paraCompiler
 from model_compiler.function_wise_compiler import FunctionWiseCompiler as FWCompiler
 import model_compiler.metadata_proess as dataproc
 
@@ -16,13 +16,13 @@ def main():
     array_v = 2048      # Vertical size of CIM array
     
     # version control
-    filename = "funcwise/"
+    filename = "parallel/"
 
     # file separation from git
     filedir = "../compiled_model/"+filename
 
     # Generate outputfile or not
-    data_flag = True
+    data_flag = False
 
     # Create model
     model = create_glu_ffn_model(hidden_dim, ffn_dim, layer_idx)
@@ -31,7 +31,7 @@ def main():
     print("\n" + "="*80 + "\n")
     
     # Compile model
-    compiler = FunctionWiseCompiler(array_h, array_v)
+    compiler = paraCompiler(array_h, array_v)
     compiled_model = compiler.divide_model(model)
     
     print("Compiled Model:")
