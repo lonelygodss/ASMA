@@ -18,7 +18,7 @@ def main():
     filename = "v1"
 
     # file separation from git
-    filedir = "compiled_model/"
+    filedir = "../compiled_model/"
 
 
     # Create model
