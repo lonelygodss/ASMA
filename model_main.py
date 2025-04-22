@@ -1,5 +1,6 @@
 from model_compiler.GLU_ffn import create_glu_ffn_model
 from model_compiler.parallel_compiler import FunctionWiseCompiler
+from model_compiler.function_wise_compiler import FunctionWiseCompiler as FWCompiler
 import model_compiler.metadata_proess as dataproc
 
 
@@ -21,7 +22,7 @@ def main():
     filedir = "../compiled_model/"+filename
 
     # Generate outputfile or not
-    data_flag = False
+    data_flag = True
 
     # Create model
     model = create_glu_ffn_model(hidden_dim, ffn_dim, layer_idx)
