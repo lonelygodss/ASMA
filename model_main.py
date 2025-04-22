@@ -19,10 +19,10 @@ def main():
     filename = "parallel/"
 
     # file separation from git
-    filedir = "../compiled_model/"+filename
+    filedir = "compiled_model/"+filename
 
     # Generate outputfile or not
-    data_flag = False
+    data_flag = True
 
     # Create model
     model = create_glu_ffn_model(hidden_dim, ffn_dim, layer_idx)
