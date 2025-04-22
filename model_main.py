@@ -21,7 +21,7 @@ def main():
     filedir = "../compiled_model/"+filename
 
     # Generate outputfile or not
-    data_flag = True
+    data_flag = False
 
     # Create model
     model = create_glu_ffn_model(hidden_dim, ffn_dim, layer_idx)

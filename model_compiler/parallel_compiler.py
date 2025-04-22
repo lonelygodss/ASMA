@@ -1,29 +1,19 @@
-from model_compiler.utils import OperationType, TensorId, TensorWithSize, Function, SubFunction, Model, CompiledModel
+# Function-wise compiler that handles each function in the GLU-FFN model with specialized methods
 
-class Compiler:
-    """Compiler that divides the model according to hardware constraints"""
-    # Constants to replace hardcoded indices
-    MVM_COMPUTE_IDX = 1        # Base index for MVM computation subfunctions
-    DISTRIBUTE_IDX = 0         # Horizontal index for distribution
-    DISTRIBUTE_VERT_IDX = -1   # Vertical index for distribution
-    CONCAT_IDX = 0             # Index for concatenation operations
-    ADD_IDX = 0                # Base horizontal index for addition operations
-    PASS_IDX = -1              # Index for pass operations
-    
-    def __init__(self, array_h: int, array_v: int):
-        """
-        Initialize compiler with array dimensions
-        
-        Args:
-            array_h: Horizontal size of CIM array
-            array_v: Vertical size of CIM array
-        """
-        self.array_h = array_h
-        self.array_v = array_v
+from model_compiler.utils import OperationType, TensorId, Function, Model, CompiledModel
+from model_compiler.compiler_base import CompilerBase
+from typing import List, Dict, Tuple, Optional
+
+
+class FunctionWiseCompiler(CompilerBase):
+    """
+    Compiler that handles each function in the GLU-FFN model with specialized methods.
+    This gives more granular control over the compilation process for different function types.
+    """
     
     def divide_model(self, model: Model) -> CompiledModel:
         """
-        Divide the model according to hardware constraints
+        Process each function in the model with a specialized method based on function type.
         
         Args:
             model: High-level model description
@@ -33,56 +23,78 @@ class Compiler:
         """
         compiled_model = CompiledModel()
         
-        # Process each function in the model
+        # Dictionary mapping function name patterns to handler methods
+        handlers = {
+            # MVM functions in a GLU-FFN architecture
+            "gate_proj": self._divide_gate_proj,
+            "up_proj": self._divide_up_proj,
+            "down_proj": self._divide_down_proj,
+            
+            # Element-wise operations
+            "glu": self._divide_glu,
+            "activation": self._divide_activation,
+            "trivial_copy": self._divide_trivial_copy,
+            "dot_product": self._divide_dot_product,
+        }
+        
+        # Process each function with its specific handler if available
         for function in model.functions:
-            if function.op_type == OperationType.MVM:
-                self._divide_mvm(function, compiled_model)
-            elif function.op_type in [OperationType.ACTIVATION, OperationType.TRIVIAL_COPY, 
-                                     OperationType.DOT_PRODUCT, OperationType.GLU]:
-                self._divide_elementwise(function, compiled_model)
+            # Try to find a specific handler for this function based on name or pattern
+            handler = None
+            for pattern, method in handlers.items():
+                if pattern in function.name.lower():
+                    handler = method
+                    break
+            
+            # Fall back to operation type if no name-based handler is found
+            if handler is None:
+                if function.op_type == OperationType.MVM:
+                    handler = self._divide_generic_mvm
+                elif function.op_type == OperationType.GLU:
+                    handler = self._divide_glu
+                elif function.op_type == OperationType.ACTIVATION:
+                    handler = self._divide_activation
+                elif function.op_type == OperationType.TRIVIAL_COPY:
+                    handler = self._divide_trivial_copy
+                elif function.op_type == OperationType.DOT_PRODUCT:
+                    handler = self._divide_dot_product
+                else:
+                    # Generic handling for any other function type
+                    handler = self._divide_generic_function
+            
+            # Apply the selected handler
+            handler(function, compiled_model)
         
         # Build the dependency graph
         compiled_model.build_dependency_graph()
         
         return compiled_model
     
-    def _create_tensor_id(self, base_coords, **override_coords):
-        """Helper to create a tensor ID with consistent naming"""
-        coords = base_coords.copy()
-        coords.update(override_coords)
-        return TensorId(**coords)
-    
-    def _create_subfunction(self, base_coords, op_type, **override_coords):
-        """Helper to create a subfunction with consistent naming"""
-        coords = base_coords.copy()
-        coords.update(override_coords)
-        return SubFunction(op_type=op_type, **coords)
-    
-    def _add_pass_function(self, function, compiled_model, output_size, output_tensor_id=None):
-        """Helper to create a pass function to the next step"""
-        base_coords = function.coords.copy()
+    def _divide_gate_proj(self, function: Function, compiled_model: CompiledModel):
+        """
+        Handle gate projection MVM specifically.
+        This produces the gating part of the GLU mechanism.
         
-        # Create pass function
-        pass_func = self._create_subfunction(base_coords, OperationType.PASS, i=-1, j=0)
-        
-        # Set up input tensor - from concat result
-        input_tensor_id = self._create_tensor_id(base_coords, i=0, j=0)            
-        pass_func.add_input_tensor(input_tensor_id, size_h=output_size, size_v=1)
-        
-        # Set up output tensor - to next step
-        if output_tensor_id is None:
-            # Default to next step in sequence
-            m_key = 'm'  # Assuming 'm' is used for sequence step
-            next_m = base_coords.get(m_key, 0) + 1
-            output_tensor_id = self._create_tensor_id({k: v for k, v in base_coords.items() if k != m_key}, **{m_key: next_m})
-            
-        pass_func.add_output_tensor(output_tensor_id, size_h=output_size, size_v=1)
-        compiled_model.add_subfunction(pass_func)
+        Args:
+            function: Gate projection function
+            compiled_model: Compiled model to add subfunctions to
+        """
+        print(f"Processing gate projection: {function.name}")
+        # Use base MVM division logic but with specific metadata for gate projection
+        self._divide_generic_mvm(function, compiled_model)
     
-    def _divide_mvm(self, function: Function, compiled_model: CompiledModel):
-        """Divide an MVM function into subfunctions based on array size constraints"""
+    def _divide_up_proj(self, function: Function, compiled_model: CompiledModel):
+        """
+        Handle up projection MVM specifically.
+        This produces the input for the GLU element-wise multiplication.
+        
+        Args:
+            function: Up projection function
+            compiled_model: Compiled model to add subfunctions to
+        """
+        print(f"Processing up projection: {function.name}")
         if not function.shape:
-            raise ValueError(f"Function {function} has no shape defined, required for MVM division")
+            raise ValueError(f"Function {function.name} has no shape defined, required for MVM division")
             
         input_dim, output_dim = function.shape
         base_coords = function.coords.copy()
@@ -91,14 +103,23 @@ class Compiler:
         h_divisions = (output_dim + self.array_h - 1) // self.array_h
         v_divisions = (input_dim + self.array_v - 1) // self.array_v
         
-        # Create compute subfunctions for each division
+        # Step 1: Create compute subfunctions for each division
+        compute_subfuncs = []
+        compute_output_tensors = []
+        
         for i in range(v_divisions):
+            row_compute_subfuncs = []
+            row_output_tensors = []
+            
             for j in range(h_divisions):
                 # Calculate the actual dimensions of this submatrix
                 start_h = j * self.array_h
                 end_h = min((j + 1) * self.array_h, output_dim)
                 start_v = i * self.array_v
                 end_v = min((i + 1) * self.array_v, input_dim)
+                
+                slice_h = end_h - start_h
+                slice_v = end_v - start_v
                 
                 # Create subfunction
                 compute_i = i + 1  # Base index for MVM computation
@@ -109,27 +130,46 @@ class Compiler:
                     i=compute_i, 
                     j=compute_j
                 )
-                subfunc.set_shape((end_v - start_v, end_h - start_h))
+                subfunc.set_shape((slice_v, slice_h))
                 subfunc.set_parent(function)
                 
                 # Input tensor ID for this slice
                 input_tensor_id = self._create_tensor_id(base_coords, i=-compute_i, j=-compute_j)
-                subfunc.add_input_tensor(input_tensor_id, size_h=end_v - start_v, size_v=1)
+                subfunc.add_input_tensor(input_tensor_id, size_h=slice_v, size_v=1)
                 
                 # Output tensor ID for compute result
                 output_tensor_id = self._create_tensor_id(base_coords, i=compute_i, j=compute_j)
-                subfunc.add_output_tensor(output_tensor_id, size_h=end_h - start_h, size_v=1)
+                subfunc.add_output_tensor(output_tensor_id, size_h=slice_h, size_v=1)
+                
+                # Store for later reference
+                row_compute_subfuncs.append(subfunc)
+                row_output_tensors.append((output_tensor_id, {'size_h': slice_h, 'size_v': 1}))
                 
                 # Add to compiled model
                 compiled_model.add_subfunction(subfunc)
-
-        # Create distribution function
-        distribution_func = self._create_subfunction(
-            base_coords, 
-            OperationType.DISTRIBUTE, 
-            i=0, 
-            j=-1
-        )
+            
+            compute_subfuncs.append(row_compute_subfuncs)
+            compute_output_tensors.append(row_output_tensors)
+        
+        # Step 2: Create distribution function and connect to compute inputs
+        
+        # Prepare output tensors for distribution
+        dist_output_tensors1 = []
+        dist_output_tensors2 = []
+        for i in range(v_divisions):
+            for j in range(h_divisions):
+                compute_i = i + 1
+                compute_j = j + 1
+                start_v = i * self.array_v
+                end_v = min((i + 1) * self.array_v, input_dim)
+                slice_v = end_v - start_v
+                
+                # Create tensor ID for distribution output
+                dist_output_id = self._create_tensor_id(base_coords, i=-compute_i, j=-compute_j)
+                if i == 0:
+                    dist_output_tensors1.append((dist_output_id, {'size_h': slice_v, 'size_v': 1}))
+                else:
+                    dist_output_tensors2.append((dist_output_id, {'size_h': slice_v, 'size_v': 1}))
         
         # Get standard input key from metadata or use default (assuming 'k' for parallel paths)
         k_key = 'k'
@@ -138,79 +178,317 @@ class Compiler:
         # Input tensor for distribution (from previous layer/step)
         input_coords = {k: v for k, v in base_coords.items()}
         input_coords[k_key] = default_input_k
-        input_tensor_id = TensorId(**input_coords)
-        distribution_func.add_input_tensor(input_tensor_id, size_h=input_dim, size_v=1)
+        input_tensor_id = self._create_tensor_id(input_coords)
+
+        distri_func_coords_1 = base_coords.copy()
+        distri_func_coords_2 = base_coords.copy()
+        distri_func_coords_1[k_key] = 1
+        distri_func_coords_2[k_key] = 2
         
-        # Add output tensors for each compute function input
+        # Create distribution function
+        self._create_distribution_function(
+            distri_func_coords_1,
+            input_tensor_id,
+            dist_output_tensors1,
+            compiled_model
+        )
+
+        self._create_distribution_function(
+            distri_func_coords_2,
+            input_tensor_id,
+            dist_output_tensors2,
+            compiled_model
+        )
+        
+        # Step 3: Create addition functions for each column to combine vertical slices
+        add_output_tensors = []
+        
+        for j in range(h_divisions):
+            start_h = j * self.array_h
+            end_h = min((j + 1) * self.array_h, output_dim)
+            slice_h = end_h - start_h
+            add_j = j + 1  # Base index for addition operations
+            
+            # Collect input tensors for this column's addition
+            add_input_tensors = []
+            for i in range(v_divisions):
+                compute_i = i + 1
+                compute_j = j + 1
+                output_tensor_id = self._create_tensor_id(base_coords, i=compute_i, j=compute_j)
+                add_input_tensors.append((output_tensor_id, {'size_h': slice_h, 'size_v': 1}))
+            
+            # Create output tensor ID for addition
+            add_output_tensor_id = self._create_tensor_id(base_coords, i=0, j=add_j)
+            output_size = {'size_h': slice_h, 'size_v': 1}
+            
+            # Create addition function
+            self._create_add_function(
+                base_coords,
+                add_input_tensors,
+                add_output_tensor_id,
+                output_size,
+                compiled_model,
+                add_j
+            )
+            
+            # Store for concat
+            add_output_tensors.append((add_output_tensor_id, output_size))
+        
+        # Step 4: Create concatenation function to combine horizontal slices
+        concat_output_tensor_id = self._create_tensor_id(base_coords, i=0, j=0)
+        concat_output_size = {'size_h': output_dim, 'size_v': 1}
+        
+        self._create_concat_function(
+            base_coords,
+            add_output_tensors,
+            concat_output_tensor_id,
+            concat_output_size,
+            compiled_model
+        )
+        
+        # Step 5: Add pass function to next step
+        self._add_pass_function(function, compiled_model, output_dim)
+    
+    def _divide_down_proj(self, function: Function, compiled_model: CompiledModel):
+        """
+        Handle down projection MVM specifically.
+        This processes the result of the GLU operation back to the model dimension.
+        
+        Args:
+            function: Down projection function
+            compiled_model: Compiled model to add subfunctions to
+        """
+        print(f"Processing down projection: {function.name}")
+        # Use base MVM division logic but with specific metadata for down projection
+        self._divide_generic_mvm(function, compiled_model)
+    
+    def _divide_glu(self, function: Function, compiled_model: CompiledModel):
+        """
+        Handle GLU operation specifically.
+        This combines gate and input projections using element-wise multiplication.
+        
+        Args:
+            function: GLU function
+            compiled_model: Compiled model to add subfunctions to
+        """
+        print(f"Processing GLU operation: {function.name}")
+        # Use elementwise division logic for GLU
+        self._divide_generic_elementwise(function, compiled_model, is_glu=True)
+    
+    def _divide_activation(self, function: Function, compiled_model: CompiledModel):
+        """
+        Handle activation function specifically.
+        
+        Args:
+            function: Activation function
+            compiled_model: Compiled model to add subfunctions to
+        """
+        print(f"Processing activation: {function.name}")
+        # Use elementwise division logic for activation
+        self._divide_generic_elementwise(function, compiled_model)
+    
+    def _divide_trivial_copy(self, function: Function, compiled_model: CompiledModel):
+        """
+        Handle trivial copy specifically.
+        
+        Args:
+            function: Trivial copy function
+            compiled_model: Compiled model to add subfunctions to
+        """
+        print(f"Processing trivial copy: {function.name}")
+        # Use elementwise division logic for trivial copy
+        self._divide_generic_elementwise(function, compiled_model)
+    
+    def _divide_dot_product(self, function: Function, compiled_model: CompiledModel):
+        """
+        Handle dot product specifically.
+        
+        Args:
+            function: Dot product function
+            compiled_model: Compiled model to add subfunctions to
+        """
+        print(f"Processing dot product: {function.name}")
+        # Use elementwise division logic for dot product
+        self._divide_generic_elementwise(function, compiled_model)
+    
+    def _divide_generic_function(self, function: Function, compiled_model: CompiledModel):
+        """
+        Generic handler for functions without a specialized handler.
+        
+        Args:
+            function: Function to process
+            compiled_model: Compiled model to add subfunctions to
+        """
+        print(f"Processing generic function: {function.name} with op type: {function.op_type}")
+        if function.op_type == OperationType.MVM:
+            self._divide_generic_mvm(function, compiled_model)
+        else:
+            self._divide_generic_elementwise(function, compiled_model)
+    
+    def _divide_generic_mvm(self, function: Function, compiled_model: CompiledModel):
+        """
+        Generic implementation for dividing MVM functions.
+        
+        Args:
+            function: MVM function to process
+            compiled_model: Compiled model to add subfunctions to
+        """
+        if not function.shape:
+            raise ValueError(f"Function {function.name} has no shape defined, required for MVM division")
+            
+        input_dim, output_dim = function.shape
+        base_coords = function.coords.copy()
+        
+        # Calculate number of divisions needed
+        h_divisions = (output_dim + self.array_h - 1) // self.array_h
+        v_divisions = (input_dim + self.array_v - 1) // self.array_v
+        
+        # Step 1: Create compute subfunctions for each division
+        compute_subfuncs = []
+        compute_output_tensors = []
+        
+        for i in range(v_divisions):
+            row_compute_subfuncs = []
+            row_output_tensors = []
+            
+            for j in range(h_divisions):
+                # Calculate the actual dimensions of this submatrix
+                start_h = j * self.array_h
+                end_h = min((j + 1) * self.array_h, output_dim)
+                start_v = i * self.array_v
+                end_v = min((i + 1) * self.array_v, input_dim)
+                
+                slice_h = end_h - start_h
+                slice_v = end_v - start_v
+                
+                # Create subfunction
+                compute_i = i + 1  # Base index for MVM computation
+                compute_j = j + 1  # Base index for MVM computation
+                subfunc = self._create_subfunction(
+                    base_coords, 
+                    OperationType.MVM, 
+                    i=compute_i, 
+                    j=compute_j
+                )
+                subfunc.set_shape((slice_v, slice_h))
+                subfunc.set_parent(function)
+                
+                # Input tensor ID for this slice
+                input_tensor_id = self._create_tensor_id(base_coords, i=-compute_i, j=-compute_j)
+                subfunc.add_input_tensor(input_tensor_id, size_h=slice_v, size_v=1)
+                
+                # Output tensor ID for compute result
+                output_tensor_id = self._create_tensor_id(base_coords, i=compute_i, j=compute_j)
+                subfunc.add_output_tensor(output_tensor_id, size_h=slice_h, size_v=1)
+                
+                # Store for later reference
+                row_compute_subfuncs.append(subfunc)
+                row_output_tensors.append((output_tensor_id, {'size_h': slice_h, 'size_v': 1}))
+                
+                # Add to compiled model
+                compiled_model.add_subfunction(subfunc)
+            
+            compute_subfuncs.append(row_compute_subfuncs)
+            compute_output_tensors.append(row_output_tensors)
+        
+        # Step 2: Create distribution function and connect to compute inputs
+        
+        # Prepare output tensors for distribution
+        dist_output_tensors = []
         for i in range(v_divisions):
             for j in range(h_divisions):
                 compute_i = i + 1
                 compute_j = j + 1
                 start_v = i * self.array_v
                 end_v = min((i + 1) * self.array_v, input_dim)
+                slice_v = end_v - start_v
                 
-                # Each distribution output connects to a compute function input
-                output_tensor_id = self._create_tensor_id(base_coords, i=-compute_i, j=-compute_j)
-                distribution_func.add_output_tensor(output_tensor_id, size_h=end_v - start_v, size_v=1)
+                # Create tensor ID for distribution output
+                dist_output_id = self._create_tensor_id(base_coords, i=-compute_i, j=-compute_j)
+                dist_output_tensors.append((dist_output_id, {'size_h': slice_v, 'size_v': 1}))
         
-        # Add distribution function to model
-        compiled_model.add_subfunction(distribution_func)
+        # Get standard input key from metadata or use default (assuming 'k' for parallel paths)
+        k_key = 'k'
+        default_input_k = base_coords.get(k_key, 1)
         
-        # Create concat function for final results
-        concat_func = self._create_subfunction(base_coords, OperationType.CONCAT, i=0, j=0)
-        concat_func.add_output_tensor(
-            self._create_tensor_id(base_coords, i=0, j=0), size_h=output_dim, size_v=1
+        # Input tensor for distribution (from previous layer/step)
+        input_coords = {k: v for k, v in base_coords.items()}
+        input_coords[k_key] = default_input_k
+        input_tensor_id = self._create_tensor_id(input_coords)
+        
+        # Create distribution function
+        self._create_distribution_function(
+            base_coords,
+            input_tensor_id,
+            dist_output_tensors,
+            compiled_model
         )
         
-        # For each column of divisions, create an add function to combine vertical slices
+        # Step 3: Create addition functions for each column to combine vertical slices
+        add_output_tensors = []
+        
         for j in range(h_divisions):
             start_h = j * self.array_h
             end_h = min((j + 1) * self.array_h, output_dim)
+            slice_h = end_h - start_h
             add_j = j + 1  # Base index for addition operations
             
-            # Create addition function
-            add_func = self._create_subfunction(
-                base_coords, 
-                OperationType.ADD, 
-                i=0, 
-                j=add_j
-            )
-            add_func.set_shape((1, end_h - start_h))
-            
-            # Set output tensor for the addition function
-            add_output_tensor_id = self._create_tensor_id(base_coords, i=0, j=add_j)
-            add_func.add_output_tensor(add_output_tensor_id, size_h=end_h - start_h, size_v=1)
-            
-            # Add each compute result as input to the addition function
+            # Collect input tensors for this column's addition
+            add_input_tensors = []
             for i in range(v_divisions):
                 compute_i = i + 1
                 compute_j = j + 1
-                
-                # Link compute output to add input
-                add_input_tensor_id = self._create_tensor_id(base_coords, i=compute_i, j=compute_j)
-                add_func.add_input_tensor(add_input_tensor_id, size_h=end_h - start_h, size_v=1)
+                output_tensor_id = self._create_tensor_id(base_coords, i=compute_i, j=compute_j)
+                add_input_tensors.append((output_tensor_id, {'size_h': slice_h, 'size_v': 1}))
             
-            # Add the addition function to the model
-            compiled_model.add_subfunction(add_func)
+            # Create output tensor ID for addition
+            add_output_tensor_id = self._create_tensor_id(base_coords, i=0, j=add_j)
+            output_size = {'size_h': slice_h, 'size_v': 1}
             
-            # Link addition output to concatenation input
-            concat_func.add_input_tensor(add_output_tensor_id, size_h=end_h - start_h, size_v=1)
+            # Create addition function
+            self._create_add_function(
+                base_coords,
+                add_input_tensors,
+                add_output_tensor_id,
+                output_size,
+                compiled_model,
+                add_j
+            )
+            
+            # Store for concat
+            add_output_tensors.append((add_output_tensor_id, output_size))
         
-        # Add concat function to model
-        compiled_model.add_subfunction(concat_func)
+        # Step 4: Create concatenation function to combine horizontal slices
+        concat_output_tensor_id = self._create_tensor_id(base_coords, i=0, j=0)
+        concat_output_size = {'size_h': output_dim, 'size_v': 1}
         
-        # Add pass function to next step
+        self._create_concat_function(
+            base_coords,
+            add_output_tensors,
+            concat_output_tensor_id,
+            concat_output_size,
+            compiled_model
+        )
+        
+        # Step 5: Add pass function to next step
         self._add_pass_function(function, compiled_model, output_dim)
+    
+    def _divide_generic_elementwise(self, function: Function, compiled_model: CompiledModel, is_glu: bool = False):
+        """
+        Generic implementation for dividing element-wise operations.
         
-    def _divide_elementwise(self, function: Function, compiled_model: CompiledModel):
-        """Divide element-wise operations (activation, GLU, etc.) into subfunctions"""
+        Args:
+            function: Element-wise function to process
+            compiled_model: Compiled model to add subfunctions to
+            is_glu: Whether this is a GLU operation (needing two inputs)
+        """
         base_coords = function.coords.copy()
         
         # Determine the output dimension
         output_dim = None
         
         if function.shape:
-            _, output_dim = function.shape  # This is a simplification - in reality, we'd need to know the exact output shape
+            _, output_dim = function.shape
         else:
             # Try to infer from the first input tensor or use default
             output_dim = 1024  # Default value, should be determined from model architecture
@@ -218,54 +496,11 @@ class Compiler:
         # Calculate number of divisions needed (only in horizontal dimension for elementwise ops)
         h_divisions = (output_dim + self.array_h - 1) // self.array_h
 
-        # For GLU, we need two distribution functions
-        if function.op_type == OperationType.GLU:
-            distribution_funcs = []
-            for k_idx in [1, 2]:  # GLU has two inputs
-                k_key = 'k'  # Assuming 'k' is used for parallel paths
-                dist_coords = base_coords.copy()
-                dist_coords[k_key] = k_idx  # Update k value for this distribution function
-                
-                dist_func = self._create_subfunction(
-                    dist_coords,
-                    OperationType.DISTRIBUTE,
-                    i=0,
-                    j=-1
-                )
-                
-                # Input tensor for this distribution function
-                input_tensor_id = TensorId(**dist_coords)
-                dist_func.add_input_tensor(input_tensor_id, size_h=output_dim, size_v=1)
-                distribution_funcs.append(dist_func)
-        else:
-            # Create single distribution function for non-GLU operations
-            distribution_func = self._create_subfunction(
-                base_coords,
-                OperationType.DISTRIBUTE,
-                i=0,
-                j=-1
-            )
-            # Add input for distribution
-            input_tensor_id = TensorId(**base_coords)
-            distribution_func.add_input_tensor(input_tensor_id, size_h=output_dim, size_v=1)
-            distribution_funcs = [distribution_func]
-        
-        # Create concat function
-        concat_func = self._create_subfunction(
-            base_coords,
-            OperationType.CONCAT,
-            i=0,
-            j=0
-        )
-        # Add output tensor for concat
-        concat_func.add_output_tensor(
-            self._create_tensor_id(base_coords, i=0, j=0),
-            size_h=output_dim,
-            size_v=1
-        )
-        
-        # Create compute subfunctions for each division
+        # Step 1: Create compute subfunctions for each division
+        compute_subfuncs = []
+        compute_output_tensors = []
         element_idx = 1  # Index for elementwise operations
+        
         for j in range(h_divisions):
             # Calculate slice dimensions
             start_h = j * self.array_h
@@ -282,49 +517,93 @@ class Compiler:
             subfunc.set_shape((1, slice_size))
             subfunc.set_parent(function)
             
-            # Handle different input configurations for GLU vs other operations
-            if function.op_type == OperationType.GLU:
-                # Create unique tensor IDs for each GLU input
-                k_key = 'k'
-                for k_idx, dist_func in enumerate(distribution_funcs, 1):
-                    input_coords = base_coords.copy()
-                    input_coords[k_key] = k_idx
-                    input_coords['i'] = element_idx
-                    input_coords['j'] = -(j+1)
-                    
-                    input_tensor_id = TensorId(**input_coords)
-                    
-                    # Add corresponding output to distribution function
-                    dist_func.add_output_tensor(input_tensor_id, size_h=slice_size, size_v=1)
-                    
-                    # Add input to compute function
-                    subfunc.add_input_tensor(input_tensor_id, size_h=slice_size, size_v=1)
-            else:
-                # Single input for non-GLU operations
-                input_tensor_id = self._create_tensor_id(base_coords, i=element_idx, j=-(j+1))
-                
-                # Add corresponding output to distribution function
-                distribution_funcs[0].add_output_tensor(input_tensor_id, size_h=slice_size, size_v=1)
-                
-                # Add input to compute function
-                subfunc.add_input_tensor(input_tensor_id, size_h=slice_size, size_v=1)
-            
             # Set output tensor for compute function
             output_tensor_id = self._create_tensor_id(base_coords, i=element_idx, j=j+1)
             subfunc.add_output_tensor(output_tensor_id, size_h=slice_size, size_v=1)
             
-            # Link compute output to concat input
-            concat_func.add_input_tensor(output_tensor_id, size_h=slice_size, size_v=1)
+            compute_subfuncs.append(subfunc)
+            compute_output_tensors.append((output_tensor_id, {'size_h': slice_size, 'size_v': 1}))
             
             # Add to compiled model
             compiled_model.add_subfunction(subfunc)
         
-        # Add distribution functions to model
-        for dist_func in distribution_funcs:
-            compiled_model.add_subfunction(dist_func)
+        # Step 2: Handle different distribution needs for GLU vs. other operations
+        if is_glu or function.op_type == OperationType.GLU:
+            # GLU needs two distribution functions (one for each input)
+            for k_idx in [1, 2]:  # GLU has two inputs
+                k_key = 'k'
+                dist_coords = base_coords.copy()
+                dist_coords[k_key] = k_idx
+                
+                # Input tensor for this distribution function
+                input_tensor_id = self._create_tensor_id(dist_coords)
+                
+                # Prepare output tensors for distribution
+                dist_output_tensors = []
+                for j in range(h_divisions):
+                    # Calculate slice dimensions
+                    start_h = j * self.array_h
+                    end_h = min((j + 1) * self.array_h, output_dim)
+                    slice_size = end_h - start_h
+                    
+                    # Create tensor ID for distribution output
+                    output_coords = base_coords.copy()
+                    output_coords[k_key] = k_idx
+                    output_coords['i'] = element_idx
+                    output_coords['j'] = -(j+1)
+                    
+                    dist_output_id = self._create_tensor_id(output_coords)
+                    dist_output_tensors.append((dist_output_id, {'size_h': slice_size, 'size_v': 1}))
+                    
+                    # Add input to corresponding compute function
+                    compute_subfuncs[j].add_input_tensor(dist_output_id, size_h=slice_size, size_v=1)
+                
+                # Create distribution function
+                self._create_distribution_function(
+                    dist_coords,
+                    input_tensor_id,
+                    dist_output_tensors,
+                    compiled_model
+                )
+        else:
+            # Single distribution function for non-GLU operations
+            # Input tensor for distribution
+            input_tensor_id = self._create_tensor_id(base_coords)
+            
+            # Prepare output tensors for distribution
+            dist_output_tensors = []
+            for j in range(h_divisions):
+                # Calculate slice dimensions
+                start_h = j * self.array_h
+                end_h = min((j + 1) * self.array_h, output_dim)
+                slice_size = end_h - start_h
+                
+                # Create tensor ID for distribution output
+                dist_output_id = self._create_tensor_id(base_coords, i=element_idx, j=-(j+1))
+                dist_output_tensors.append((dist_output_id, {'size_h': slice_size, 'size_v': 1}))
+                
+                # Add input to corresponding compute function
+                compute_subfuncs[j].add_input_tensor(dist_output_id, size_h=slice_size, size_v=1)
+            
+            # Create distribution function
+            self._create_distribution_function(
+                base_coords,
+                input_tensor_id,
+                dist_output_tensors,
+                compiled_model
+            )
         
-        # Add concat function to model
-        compiled_model.add_subfunction(concat_func)
+        # Step 3: Create concatenation function
+        concat_output_tensor_id = self._create_tensor_id(base_coords, i=0, j=0)
+        concat_output_size = {'size_h': output_dim, 'size_v': 1}
         
-        # Add pass function to next step
+        self._create_concat_function(
+            base_coords,
+            compute_output_tensors,
+            concat_output_tensor_id,
+            concat_output_size,
+            compiled_model
+        )
+        
+        # Step 4: Add pass function to next step
         self._add_pass_function(function, compiled_model, output_dim)

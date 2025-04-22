@@ -173,6 +173,146 @@ class CompilerBase:
         compiled_model.add_subfunction(add_func)
         
         return add_func
+    
+    def find_subfunction(self, compiled_model: CompiledModel, **criteria) -> Optional[SubFunction]:
+        """
+        Find a specific subfunction in the compiled model based on search criteria.
+        
+        Args:
+            compiled_model: The compiled model to search in
+            criteria: Key-value pairs for filter conditions (e.g., i=1, j=2, op_type=OperationType.MVM)
+            
+        Returns:
+            Matching subfunction or None if not found
+        """
+        for subfunc in compiled_model.subfunctions:
+            match = True
+            for key, value in criteria.items():
+                if key == 'op_type':
+                    if subfunc.op_type != value:
+                        match = False
+                        break
+                elif hasattr(subfunc, key):
+                    if getattr(subfunc, key) != value:
+                        match = False
+                        break
+                elif key in subfunc.coords:
+                    if subfunc.coords[key] != value:
+                        match = False
+                        break
+                else:
+                    # If attribute doesn't exist, it's not a match
+                    match = False
+                    break
+            
+            if match:
+                return subfunc
+        
+        return None
+    
+    def find_subfunctions(self, compiled_model: CompiledModel, **criteria) -> List[SubFunction]:
+        """
+        Find all subfunctions in the compiled model that match given criteria.
+        
+        Args:
+            compiled_model: The compiled model to search in
+            criteria: Key-value pairs for filter conditions (e.g., i=1, j=2, op_type=OperationType.MVM)
+            
+        Returns:
+            List of matching subfunctions
+        """
+        results = []
+        
+        for subfunc in compiled_model.subfunctions:
+            match = True
+            for key, value in criteria.items():
+                if key == 'op_type':
+                    if subfunc.op_type != value:
+                        match = False
+                        break
+                elif hasattr(subfunc, key):
+                    if getattr(subfunc, key) != value:
+                        match = False
+                        break
+                elif key in subfunc.coords:
+                    if subfunc.coords[key] != value:
+                        match = False
+                        break
+                else:
+                    # If attribute doesn't exist, it's not a match
+                    match = False
+                    break
+            
+            if match:
+                results.append(subfunc)
+        
+        return results
+    
+    def add_input_to_subfunction(self, subfunction: SubFunction, 
+                                tensor_id: TensorId, 
+                                size_h: int, 
+                                size_v: int = 1) -> None:
+        """
+        Add an input tensor to an existing subfunction
+        
+        Args:
+            subfunction: The subfunction to add the input tensor to
+            tensor_id: ID of the input tensor
+            size_h: Horizontal size of the tensor
+            size_v: Vertical size of the tensor (default 1)
+        """
+        subfunction.add_input_tensor(tensor_id, size_h=size_h, size_v=size_v)
+    
+    def add_output_to_subfunction(self, subfunction: SubFunction, 
+                                 tensor_id: TensorId, 
+                                 size_h: int, 
+                                 size_v: int = 1) -> None:
+        """
+        Add an output tensor to an existing subfunction
+        
+        Args:
+            subfunction: The subfunction to add the output tensor to
+            tensor_id: ID of the output tensor
+            size_h: Horizontal size of the tensor
+            size_v: Vertical size of the tensor (default 1)
+        """
+        subfunction.add_output_tensor(tensor_id, size_h=size_h, size_v=size_v)
+    
+    def connect_subfunctions(self, 
+                           source_subfunction: SubFunction, 
+                           target_subfunction: SubFunction, 
+                           tensor_size_h: int,
+                           tensor_size_v: int = 1) -> TensorId:
+        """
+        Connect two subfunctions by creating a tensor that serves as output
+        for the source and input for the target.
+        
+        Args:
+            source_subfunction: Source subfunction
+            target_subfunction: Target subfunction 
+            tensor_size_h: Horizontal size of connecting tensor
+            tensor_size_v: Vertical size of connecting tensor
+            
+        Returns:
+            The created tensor ID
+        """
+        # Create a tensor ID that combines coordinates from both subfunctions
+        base_coords = source_subfunction.coords.copy()
+        
+        # Use source i and j values but increment to make the tensor ID unique
+        i_val = base_coords.get('i', 0)
+        j_val = base_coords.get('j', 0)
+        
+        # Create a unique tensor ID
+        tensor_id = self._create_tensor_id(base_coords, i=i_val*10, j=j_val*10)
+        
+        # Add as output to source
+        self.add_output_to_subfunction(source_subfunction, tensor_id, tensor_size_h, tensor_size_v)
+        
+        # Add as input to target
+        self.add_input_to_subfunction(target_subfunction, tensor_id, tensor_size_h, tensor_size_v)
+        
+        return tensor_id
             
     def _divide_mvm(self, function: Function, compiled_model: CompiledModel):
         """

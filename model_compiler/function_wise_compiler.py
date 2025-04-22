@@ -2,7 +2,7 @@
 
 from model_compiler.utils import OperationType, TensorId, Function, Model, CompiledModel
 from model_compiler.compiler_base import CompilerBase
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Any
 
 
 class FunctionWiseCompiler(CompilerBase):
@@ -319,6 +319,110 @@ class FunctionWiseCompiler(CompilerBase):
         
         # Step 5: Add pass function to next step
         self._add_pass_function(function, compiled_model, output_dim)
+    
+    def connect_functions(self, source_func_name: str, target_func_name: str, 
+                         compiled_model: CompiledModel, tensor_size_h: int = None):
+        """
+        Establish a connection between two functions in the compiled model.
+        Useful for adding custom dataflow paths not covered by the standard compilation.
+        
+        Args:
+            source_func_name: Name pattern to identify the source function
+            target_func_name: Name pattern to identify the target function
+            compiled_model: The compiled model containing the functions
+            tensor_size_h: Horizontal size of the connecting tensor (auto-determined if None)
+        """
+        # Find source and target functions
+        source_subfuncs = [sf for sf in compiled_model.subfunctions 
+                         if hasattr(sf, 'parent') and sf.parent and source_func_name in sf.parent.name]
+        target_subfuncs = [sf for sf in compiled_model.subfunctions 
+                         if hasattr(sf, 'parent') and sf.parent and target_func_name in sf.parent.name]
+        
+        if not source_subfuncs or not target_subfuncs:
+            print(f"Warning: Could not find functions matching '{source_func_name}' and/or '{target_func_name}'")
+            return
+        
+        # Filter to get the final output from source and first input of target
+        # This simplistic approach assumes we want to connect the concat outputs to distribution inputs
+        source_concat = None
+        for sf in source_subfuncs:
+            if sf.op_type == OperationType.CONCAT and 'i' in sf.coords and sf.coords['i'] == 0:
+                source_concat = sf
+                break
+                
+        target_dist = None
+        for sf in target_subfuncs:
+            if sf.op_type == OperationType.DISTRIBUTE:
+                target_dist = sf
+                break
+        
+        if not source_concat or not target_dist:
+            print(f"Warning: Could not find appropriate concat/distribute functions to connect")
+            return
+            
+        # Determine tensor size if not specified
+        if tensor_size_h is None:
+            # Try to get from source output or target input
+            if source_concat.outputs:
+                first_output = next(iter(source_concat.outputs.values()))
+                tensor_size_h = first_output.get('size_h', 1024)  # Default if not found
+            elif target_dist.inputs:
+                first_input = next(iter(target_dist.inputs.values()))
+                tensor_size_h = first_input.get('size_h', 1024)  # Default if not found
+            else:
+                tensor_size_h = 1024  # Default size
+        
+        # Create the connection
+        self.connect_subfunctions(source_concat, target_dist, tensor_size_h)
+        print(f"Connected {source_func_name} to {target_func_name}")
+    
+    def update_subfunction_input(self, compiled_model: CompiledModel, 
+                                criteria: Dict[str, Any], 
+                                tensor_id: TensorId, 
+                                size_h: int, 
+                                size_v: int = 1):
+        """
+        Find a subfunction by criteria and add a new input tensor to it.
+        
+        Args:
+            compiled_model: The compiled model to search in
+            criteria: Dictionary of search criteria
+            tensor_id: The tensor ID to add as input
+            size_h: Horizontal size of the tensor
+            size_v: Vertical size of the tensor
+        
+        Returns:
+            True if a matching subfunction was found and updated, False otherwise
+        """
+        sf = self.find_subfunction(compiled_model, **criteria)
+        if sf:
+            self.add_input_to_subfunction(sf, tensor_id, size_h, size_v)
+            return True
+        return False
+    
+    def update_subfunction_output(self, compiled_model: CompiledModel, 
+                                 criteria: Dict[str, Any], 
+                                 tensor_id: TensorId, 
+                                 size_h: int, 
+                                 size_v: int = 1):
+        """
+        Find a subfunction by criteria and add a new output tensor to it.
+        
+        Args:
+            compiled_model: The compiled model to search in
+            criteria: Dictionary of search criteria
+            tensor_id: The tensor ID to add as output
+            size_h: Horizontal size of the tensor
+            size_v: Vertical size of the tensor
+        
+        Returns:
+            True if a matching subfunction was found and updated, False otherwise
+        """
+        sf = self.find_subfunction(compiled_model, **criteria)
+        if sf:
+            self.add_output_to_subfunction(sf, tensor_id, size_h, size_v)
+            return True
+        return False
     
     def _divide_generic_elementwise(self, function: Function, compiled_model: CompiledModel, is_glu: bool = False):
         """
