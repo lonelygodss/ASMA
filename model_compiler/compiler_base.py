@@ -17,6 +17,7 @@ class CompilerBase:
         """
         self.array_h = array_h
         self.array_v = array_v
+
     
     def divide_model(self, model: Model) -> CompiledModel:
         """

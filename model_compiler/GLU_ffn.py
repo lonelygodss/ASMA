@@ -40,5 +40,8 @@ def create_glu_ffn_model(hidden_dim: int, ffn_dim: int, layer_idx: int = 1) -> M
     down_proj = Function(op_type=OperationType.MVM, name="down_proj", k=1, m=4, n=layer_idx)
     down_proj.set_shape((ffn_dim, hidden_dim))
     model.add_function(down_proj)
+
+    model.model_dimension = hidden_dim
+    model.ffn_dimension = ffn_dim
     
     return model

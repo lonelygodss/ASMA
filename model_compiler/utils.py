@@ -135,6 +135,8 @@ class Model:
     def __init__(self):
         self.functions: List[Function] = []
         self.metadata = {}    # Additional metadata for the model
+        self.model_dimension = None
+        self.ffn_dimension = None
         
     def add_function(self, function: Function):
         """Add a function to the model"""

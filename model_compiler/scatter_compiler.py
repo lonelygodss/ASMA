@@ -22,6 +22,8 @@ class ScatterCompiler(CompilerBase):
             Compiled model with subfunctions
         """
         compiled_model = CompiledModel()
+        self.h_number = (model.ffn_dimension+self.array_h-1)//self.array_h
+        self.v_number = (model.model_dimension+self.array_v-1)//self.array_v
         
         # Dictionary mapping function name patterns to handler methods
         handlers = {
@@ -195,38 +197,35 @@ class ScatterCompiler(CompilerBase):
                 raise ValueError(f"Distribution function not found for coordinates {distri_func_coords_2}")
 
         # Step 3: Create addition functions for each column to combine vertical slices
-        add_output_tensors = []
         
         for j in range(h_divisions):
             start_h = j * self.array_h
             end_h = min((j + 1) * self.array_h, output_dim)
             slice_h = end_h - start_h
-            add_idx = [0,j + 1]  # Base index for addition operations
             
             # Collect input tensors for this column's addition
-            add_input_tensors = []
             for i in range(v_divisions):
+                add_input_tensors = []
                 compute_i = i + 1
                 compute_j = j + 1
-                output_tensor_id = self._create_tensor_id(base_coords, i=compute_i, j=compute_j)
-                add_input_tensors.append((output_tensor_id, {'size_h': slice_h, 'size_v': 1}))
+                input_tensor_id1 = self._create_tensor_id(base_coords, i=1, j=compute_j)
+                add_input_tensors.append((input_tensor_id1, {'size_h': slice_h//2, 'size_v': 1}))
+                input_tensor_id2 = self._create_tensor_id(base_coords, i=2, j=compute_j)
+                add_input_tensors.append((input_tensor_id2, {'size_h': slice_h//2, 'size_v': 1}))
             
-            # Create output tensor ID for addition
-            add_output_tensor_id = self._create_tensor_id(base_coords, i=add_idx[0], j=add_idx[1])
-            output_size = {'size_h': slice_h, 'size_v': 1}
+                # Create output tensor ID for addition
+                add_output_tensor_id = self._create_tensor_id(base_coords, i=-(i+1), j=(j+1))
+                output_size = {'size_h': slice_h//2, 'size_v': 1}
             
-            # Create addition function
-            self._create_add_function(
-                base_coords,
-                add_input_tensors,
-                add_output_tensor_id,
-                output_size,
-                compiled_model,
-                add_idx
-            )
-            
-            # Store for concat
-            add_output_tensors.append((add_output_tensor_id, output_size))
+                # Create addition function
+                self._create_add_function(
+                    base_coords,
+                    add_input_tensors,
+                    add_output_tensor_id,
+                    output_size,
+                    compiled_model,
+                    [-(i+1),(j+1)]
+                )
         
     
     def _divide_up_proj(self, function: Function, compiled_model: CompiledModel):
@@ -356,7 +355,6 @@ class ScatterCompiler(CompilerBase):
             
             # Collect input tensors for this column's addition
             for i in range(v_divisions):
-                add_idx = [i + 1,j+1]
                 add_input_tensors = []
                 compute_i = i + 1
                 compute_j = j + 1
@@ -366,7 +364,7 @@ class ScatterCompiler(CompilerBase):
                 add_input_tensors.append((input_tensor_id2, {'size_h': slice_h//2, 'size_v': 1}))
             
                 # Create output tensor ID for addition
-                add_output_tensor_id = self._create_tensor_id(base_coords, i=add_idx[0], j=add_idx[1])
+                add_output_tensor_id = self._create_tensor_id(base_coords, i=-(i+1), j=(j+1))
                 output_size = {'size_h': slice_h//2, 'size_v': 1}
             
                 # Create addition function
@@ -376,7 +374,7 @@ class ScatterCompiler(CompilerBase):
                     add_output_tensor_id,
                     output_size,
                     compiled_model,
-                    add_idx
+                    [-(i+1),(j+1)]
                 )
             
 
@@ -406,13 +404,8 @@ class ScatterCompiler(CompilerBase):
         v_divisions = (input_dim + self.array_h - 1) // self.array_h
         
         # Step 1: Create compute subfunctions for each division
-        compute_subfuncs = []
-        compute_output_tensors = []
         
-        for i in range(v_divisions):
-            row_compute_subfuncs = []
-            row_output_tensors = []
-            
+        for i in range(v_divisions):           
             for j in range(h_divisions):
                 # Calculate the actual dimensions of this submatrix
                 start_h = j * self.array_v
@@ -434,36 +427,36 @@ class ScatterCompiler(CompilerBase):
                 )
                 subfunc.set_shape((slice_v, slice_h))
                 subfunc.set_parent(function)
-                
-                # Input tensor ID for this slice
-                glu_coords = base_coords.copy()
-                glu_coords['i'] = 1
-                glu_coords['j'] = compute_i
-                glu_coords['k'] = 1
-                glu_coords['m'] = 3
-                glu_coords['n'] = 1
-                glu_subfunction = self.find_subfunction(
-                    compiled_model,
-                    coords=glu_coords,
-                    op_type=OperationType.GLU,
-                )
-                input_tensors = glu_subfunction.output_tensors
+
+                input_tensors = []
+                for k in range(h_divisions):
+                    glu_coords = base_coords.copy()
+                    glu_coords['i'] = 1
+                    glu_coords['j'] = k+1+i*h_divisions
+                    glu_coords['k'] = 1
+                    glu_coords['m'] = 3
+                    glu_coords['n'] = 1
+                    glu_subfunction = self.find_subfunction(
+                        compiled_model,
+                        coords=glu_coords,
+                        op_type=OperationType.GLU,
+                    )
+                    input_tensors.append(glu_subfunction.output_tensors[0])
+
                 for tensor in input_tensors:
                     subfunc.add_input_tensor(tensor.tensor_id, **tensor.size_params)
+ 
+
                                 
                 # Output tensor ID for compute result
                 output_tensor_id = self._create_tensor_id(base_coords, i=compute_i, j=compute_j)
                 subfunc.add_output_tensor(output_tensor_id, size_h=slice_h, size_v=1)
                 
-                # Store for later reference
-                row_compute_subfuncs.append(subfunc)
-                row_output_tensors.append((output_tensor_id, {'size_h': slice_h, 'size_v': 1}))
+
                 
                 # Add to compiled model
                 compiled_model.add_subfunction(subfunc)
             
-            compute_subfuncs.append(row_compute_subfuncs)
-            compute_output_tensors.append(row_output_tensors)
         
         # Step 3: Create addition functions for each column to combine vertical slices
         add_output_tensors = []
@@ -543,11 +536,15 @@ class ScatterCompiler(CompilerBase):
         element_idx = 1  # Index for elementwise operations
 
         
-        for j in range(h_divisions):
+        for j in range(h_divisions * self.v_number):
             # Calculate slice dimensions
-            start_h = j * self.array_h
-            end_h = min((j + 1) * self.array_h, output_dim)
+            i = j % self.v_number
+            j_find = j // self.v_number
+            finegrain_slice = self.array_h//self.v_number
+            start_h = j * finegrain_slice
+            end_h = min((j + 1) * finegrain_slice, output_dim)
             slice_size = end_h - start_h
+            
             
             # Create compute subfunction
             subfunc = self._create_subfunction(
@@ -569,8 +566,8 @@ class ScatterCompiler(CompilerBase):
             # Find input tensors for this GLU operation
             # Add addition outputs
             add_subfunction_coords = base_coords.copy()
-            add_subfunction_coords['i'] = 0
-            add_subfunction_coords['j'] = j + 1
+            add_subfunction_coords['i'] = -(i+1)
+            add_subfunction_coords['j'] = j_find + 1
             add_subfunction_coords['k'] = 1
             add_subfunction_coords['m'] = 1
             add_subfunction_coords['n'] = 1
@@ -635,11 +632,15 @@ class ScatterCompiler(CompilerBase):
     
 
         
-        for j in range(h_divisions):
+        for j in range(h_divisions * self.v_number):
             # Calculate slice dimensions
-            start_h = j * self.array_h
-            end_h = min((j + 1) * self.array_h, output_dim)
+            i = j % self.v_number
+            j_find = j // self.v_number
+            finegrain_slice = self.array_h//self.v_number
+            start_h = j * finegrain_slice
+            end_h = min((j + 1) * finegrain_slice, output_dim)
             slice_size = end_h - start_h
+            
             
             # Create compute subfunction
             subfunc = self._create_subfunction(
@@ -660,8 +661,8 @@ class ScatterCompiler(CompilerBase):
 
             # Find input tensors for this Activation operation
             add_subfunction_coords = base_coords.copy()
-            add_subfunction_coords['i'] = 0
-            add_subfunction_coords['j'] = j + 1
+            add_subfunction_coords['i'] = -(i+1)
+            add_subfunction_coords['j'] = (j_find + 1)
             add_subfunction_coords['k'] = 2
             add_subfunction_coords['m'] = 1
             add_subfunction_coords['n'] = 1

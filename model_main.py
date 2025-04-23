@@ -18,19 +18,19 @@ def main():
     array_v = 2048      # Vertical size of CIM array
     
     # version control
-    filename = "baseline/"
+    filename = "scatterd2/"
 
     # file separation from git
     filedir = "compiled_model/"+filename
 
     # Generate outputfile or not
-    data_flag = True
+    data_flag = False
 
     # Create model
     model = create_glu_ffn_model(hidden_dim, ffn_dim, layer_idx)
-    print("Original Model:")
-    print(model)
-    print("\n" + "="*80 + "\n")
+    # print("Original Model:")
+    # print(model)
+    # print("\n" + "="*80 + "\n")
     
     # Compile model
     compiler = BaselineCompiler(array_h, array_v)
@@ -47,9 +47,9 @@ def main():
             op_counts[op_type] = 0
         op_counts[op_type] += 1
     
-    print("\nOperation counts:")
-    for op_type, count in op_counts.items():
-        print(f"  {op_type}: {count}")
+    # print("\nOperation counts:")
+    # for op_type, count in op_counts.items():
+    #     print(f"  {op_type}: {count}")
     
     # Print a sample of subfunctions
     # print("\nSample subfunctions:")
@@ -65,27 +65,27 @@ def main():
     if data_flag:
         # Visualize the compiled model with shorter labels
         dataproc.visualize_compiled_model(compiled_model, filedir+ "ffn_compiled_model")
-        # # Alternative layered visualization with shorter labels
-        # dataproc.visualize_compiled_model_layered(compiled_model, filedir+ "ffn_compiled_model_layered")
+        # Alternative layered visualization with shorter labels
+        dataproc.visualize_compiled_model_layered(compiled_model, filedir+ "ffn_compiled_model_layered")
     
-        # # Simplified visualization focusing on dataflow
-        # dataproc.visualize_compiled_model_simple(compiled_model, filedir+ "ffn_compiled_model_simple")
+        # Simplified visualization focusing on dataflow
+        dataproc.visualize_compiled_model_simple(compiled_model, filedir+ "ffn_compiled_model_simple")
 
-        # # Save the compute graph
-        # dataproc.save_compute_graph(connection_info, filedir+ "ffn_compute_graph.json")
-        # # Visualize the compute graph
-        # dataproc.visualize_compute_graph_graphviz(connection_info, filedir+ "ffn_compute_graph_graphviz")
+        # Save the compute graph
+        dataproc.save_compute_graph(connection_info, filedir+ "ffn_compute_graph.json")
+        # Visualize the compute graph
+        dataproc.visualize_compute_graph_graphviz(connection_info, filedir+ "ffn_compute_graph_graphviz")
     
-    # Analyze the compute graph
-    # analysis = dataproc.analyze_compute_graph(connection_info)
-    # print("\nCompute Graph Analysis:")
-    # for key, value in analysis.items():  # Fixed: using analysis instead of dataproc.analysis
-    #     if isinstance(value, dict):
-    #         print(f"  {key}:")
-    #         for k, v in value.items():
-    #             print(f"    {k}: {v}")
-    #     else:
-    #         print(f"  {key}: {value}")
+    #Analyze the compute graph
+    analysis = dataproc.analyze_compute_graph(connection_info)
+    print("\nCompute Graph Analysis:")
+    for key, value in analysis.items():  # Fixed: using analysis instead of dataproc.analysis
+        if isinstance(value, dict):
+            print(f"  {key}:")
+            for k, v in value.items():
+                print(f"    {k}: {v}")
+        else:
+            print(f"  {key}: {value}")
 
 if __name__ == "__main__":
     main()
