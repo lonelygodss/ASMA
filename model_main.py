@@ -14,17 +14,17 @@ def main():
     layer_idx = 1      # First decoder layer
     
     # Define hardware constraints
-    array_h = 2048      # Horizontal size of CIM array
-    array_v = 2048      # Vertical size of CIM array
+    array_h = 1024      # Horizontal size of CIM array
+    array_v = 1024      # Vertical size of CIM array
     
     # version control
-    filename = "scatterd2/"
+    filename = "scatterd3/"
 
     # file separation from git
     filedir = "compiled_model/"+filename
 
     # Generate outputfile or not
-    data_flag = False
+    data_flag = True
 
     # Create model
     model = create_glu_ffn_model(hidden_dim, ffn_dim, layer_idx)
@@ -33,7 +33,7 @@ def main():
     # print("\n" + "="*80 + "\n")
     
     # Compile model
-    compiler = BaselineCompiler(array_h, array_v)
+    compiler = ScatterCompiler(array_h, array_v)
     compiled_model = compiler.divide_model(model)
     
     print("Compiled Model:")
