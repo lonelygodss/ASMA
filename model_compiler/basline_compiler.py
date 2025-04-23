@@ -223,7 +223,7 @@ class BaselineCompiler(CompilerBase):
                 add_output_tensor_id,
                 output_size,
                 compiled_model,
-                add_j
+                [0,j+1]
             )
             
             # Store for concat
@@ -386,7 +386,7 @@ class BaselineCompiler(CompilerBase):
                 add_output_tensor_id,
                 output_size,
                 compiled_model,
-                add_j
+                [0,j+1]
             )
             
             # Store for concat
@@ -544,7 +544,7 @@ class BaselineCompiler(CompilerBase):
                 add_output_tensor_id,
                 output_size,
                 compiled_model,
-                add_j
+                [0,j+1]
             )
             
             # Store for concat
@@ -938,7 +938,7 @@ class BaselineCompiler(CompilerBase):
                 add_output_tensor_id,
                 output_size,
                 compiled_model,
-                add_j
+                [0,j+1]
             )
             
             # Store for concat

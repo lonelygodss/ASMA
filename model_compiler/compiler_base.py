@@ -140,7 +140,7 @@ class CompilerBase:
 
     def _create_add_function(self, base_coords: Dict, input_tensor_ids: List[Tuple[TensorId, Dict]],
                             output_tensor_id: TensorId, output_size: Dict, 
-                            compiled_model: CompiledModel, add_idx: int) -> SubFunction:
+                            compiled_model: CompiledModel, add_idx: List) -> SubFunction:
         """
         Create an addition function to combine multiple inputs
         
@@ -156,7 +156,7 @@ class CompilerBase:
             Created add function
         """
         # Create add function
-        add_func = self._create_subfunction(base_coords, OperationType.ADD, i=0, j=add_idx)
+        add_func = self._create_subfunction(base_coords, OperationType.ADD, i=add_idx[0], j=add_idx[1])
         
         # Set shape if size_h and size_v are available
         if 'size_h' in output_size and 'size_v' in output_size:

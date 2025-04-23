@@ -201,7 +201,7 @@ class ScatterCompiler(CompilerBase):
             start_h = j * self.array_h
             end_h = min((j + 1) * self.array_h, output_dim)
             slice_h = end_h - start_h
-            add_j = j + 1  # Base index for addition operations
+            add_idx = [0,j + 1]  # Base index for addition operations
             
             # Collect input tensors for this column's addition
             add_input_tensors = []
@@ -212,7 +212,7 @@ class ScatterCompiler(CompilerBase):
                 add_input_tensors.append((output_tensor_id, {'size_h': slice_h, 'size_v': 1}))
             
             # Create output tensor ID for addition
-            add_output_tensor_id = self._create_tensor_id(base_coords, i=0, j=add_j)
+            add_output_tensor_id = self._create_tensor_id(base_coords, i=add_idx[0], j=add_idx[1])
             output_size = {'size_h': slice_h, 'size_v': 1}
             
             # Create addition function
@@ -222,7 +222,7 @@ class ScatterCompiler(CompilerBase):
                 add_output_tensor_id,
                 output_size,
                 compiled_model,
-                add_j
+                add_idx
             )
             
             # Store for concat
@@ -353,32 +353,33 @@ class ScatterCompiler(CompilerBase):
             start_h = j * self.array_h
             end_h = min((j + 1) * self.array_h, output_dim)
             slice_h = end_h - start_h
-            add_j = j + 1  # Base index for addition operations
             
             # Collect input tensors for this column's addition
-            add_input_tensors = []
             for i in range(v_divisions):
+                add_idx = [i + 1,j+1]
+                add_input_tensors = []
                 compute_i = i + 1
                 compute_j = j + 1
-                output_tensor_id = self._create_tensor_id(base_coords, i=compute_i, j=compute_j)
-                add_input_tensors.append((output_tensor_id, {'size_h': slice_h, 'size_v': 1}))
+                input_tensor_id1 = self._create_tensor_id(base_coords, i=1, j=compute_j)
+                add_input_tensors.append((input_tensor_id1, {'size_h': slice_h//2, 'size_v': 1}))
+                input_tensor_id2 = self._create_tensor_id(base_coords, i=2, j=compute_j)
+                add_input_tensors.append((input_tensor_id2, {'size_h': slice_h//2, 'size_v': 1}))
             
-            # Create output tensor ID for addition
-            add_output_tensor_id = self._create_tensor_id(base_coords, i=0, j=add_j)
-            output_size = {'size_h': slice_h, 'size_v': 1}
+                # Create output tensor ID for addition
+                add_output_tensor_id = self._create_tensor_id(base_coords, i=add_idx[0], j=add_idx[1])
+                output_size = {'size_h': slice_h//2, 'size_v': 1}
             
-            # Create addition function
-            self._create_add_function(
-                base_coords,
-                add_input_tensors,
-                add_output_tensor_id,
-                output_size,
-                compiled_model,
-                add_j
-            )
+                # Create addition function
+                self._create_add_function(
+                    base_coords,
+                    add_input_tensors,
+                    add_output_tensor_id,
+                    output_size,
+                    compiled_model,
+                    add_idx
+                )
             
-            # Store for concat
-            add_output_tensors.append((add_output_tensor_id, output_size))
+
         
 
     
@@ -471,7 +472,7 @@ class ScatterCompiler(CompilerBase):
             start_h = j * self.array_v
             end_h = min((j + 1) * self.array_h, output_dim)
             slice_h = end_h - start_h
-            add_j = j + 1  # Base index for addition operations
+            add_idx = [0,j + 1]  # Base index for addition operations
             
             # Collect input tensors for this column's addition
             add_input_tensors = []
@@ -482,7 +483,7 @@ class ScatterCompiler(CompilerBase):
                 add_input_tensors.append((output_tensor_id, {'size_h': slice_h, 'size_v': 1}))
             
             # Create output tensor ID for addition
-            add_output_tensor_id = self._create_tensor_id(base_coords, i=0, j=add_j)
+            add_output_tensor_id = self._create_tensor_id(base_coords, i=add_idx[0], j=add_idx[1])
             output_size = {'size_h': slice_h, 'size_v': 1}
             
             # Create addition function
@@ -492,7 +493,7 @@ class ScatterCompiler(CompilerBase):
                 add_output_tensor_id,
                 output_size,
                 compiled_model,
-                add_j
+                add_idx
             )
             
             # Store for concat
@@ -821,7 +822,6 @@ class ScatterCompiler(CompilerBase):
             start_h = j * self.array_h
             end_h = min((j + 1) * self.array_h, output_dim)
             slice_h = end_h - start_h
-            add_j = j + 1  # Base index for addition operations
             
             # Collect input tensors for this column's addition
             add_input_tensors = []
@@ -832,7 +832,7 @@ class ScatterCompiler(CompilerBase):
                 add_input_tensors.append((output_tensor_id, {'size_h': slice_h, 'size_v': 1}))
             
             # Create output tensor ID for addition
-            add_output_tensor_id = self._create_tensor_id(base_coords, i=0, j=add_j)
+            add_output_tensor_id = self._create_tensor_id(base_coords, i=0, j=j+1)
             output_size = {'size_h': slice_h, 'size_v': 1}
             
             # Create addition function
@@ -842,7 +842,7 @@ class ScatterCompiler(CompilerBase):
                 add_output_tensor_id,
                 output_size,
                 compiled_model,
-                add_j
+                [0,j+1]
             )
             
             # Store for concat

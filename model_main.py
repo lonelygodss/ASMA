@@ -18,7 +18,7 @@ def main():
     array_v = 2048      # Vertical size of CIM array
     
     # version control
-    filename = "scatter/"
+    filename = "baseline/"
 
     # file separation from git
     filedir = "compiled_model/"+filename
@@ -33,7 +33,7 @@ def main():
     print("\n" + "="*80 + "\n")
     
     # Compile model
-    compiler = ScatterCompiler(array_h, array_v)
+    compiler = BaselineCompiler(array_h, array_v)
     compiled_model = compiler.divide_model(model)
     
     print("Compiled Model:")
@@ -65,16 +65,16 @@ def main():
     if data_flag:
         # Visualize the compiled model with shorter labels
         dataproc.visualize_compiled_model(compiled_model, filedir+ "ffn_compiled_model")
-        # Alternative layered visualization with shorter labels
-        dataproc.visualize_compiled_model_layered(compiled_model, filedir+ "ffn_compiled_model_layered")
+        # # Alternative layered visualization with shorter labels
+        # dataproc.visualize_compiled_model_layered(compiled_model, filedir+ "ffn_compiled_model_layered")
     
-        # Simplified visualization focusing on dataflow
-        dataproc.visualize_compiled_model_simple(compiled_model, filedir+ "ffn_compiled_model_simple")
+        # # Simplified visualization focusing on dataflow
+        # dataproc.visualize_compiled_model_simple(compiled_model, filedir+ "ffn_compiled_model_simple")
 
-        # Save the compute graph
-        dataproc.save_compute_graph(connection_info, filedir+ "ffn_compute_graph.json")
-        # Visualize the compute graph
-        dataproc.visualize_compute_graph_graphviz(connection_info, filedir+ "ffn_compute_graph_graphviz")
+        # # Save the compute graph
+        # dataproc.save_compute_graph(connection_info, filedir+ "ffn_compute_graph.json")
+        # # Visualize the compute graph
+        # dataproc.visualize_compute_graph_graphviz(connection_info, filedir+ "ffn_compute_graph_graphviz")
     
     # Analyze the compute graph
     # analysis = dataproc.analyze_compute_graph(connection_info)
