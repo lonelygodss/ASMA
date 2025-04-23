@@ -568,12 +568,12 @@ def parse_compute_graph(compiled_model: CompiledModel) -> Dict:
             if tensor_id_tuple not in connection_info['tensor_consumers']:
                 connection_info['tensor_consumers'][tensor_id_tuple] = []
             connection_info['tensor_consumers'][tensor_id_tuple].append(subfunction_id)
-            
             # Add tensor details
             tensor_info = {
                 'tensor_id': tensor_id_tuple,
                 **input_tensor.size_params
             }
+
             input_tensors.append(tensor_info)
         
         output_tensors = []
@@ -716,13 +716,18 @@ def trace_paths(current_node: str, current_path: List[str],
                     tensor_id = output_tensor['tensor_id']
                     consumers = connection_info['tensor_consumers'].get(tensor_id, [])
                     if consumer in consumers:
-                        size_info = {k: v for k, v in output_tensor.items() if k != 'tensor_id'}
-                        tensor_transfers.append({
-                            'from': producer,
-                            'to': consumer,
-                            'tensor_id': str(tensor_id),  # Convert to string for JSON serialization
-                            **size_info
-                        })
+                        input_list = connection_info['subfunction_inputs'].get(consumer)
+                        for input in input_list:
+                            if input['tensor_id'] == tensor_id:
+                                h = input['size_h']
+                                v = input['size_v']
+                                size_info = {'size_h': h, 'size_v': v}
+                                tensor_transfers.append({
+                                    'from': producer,
+                                    'to': consumer,
+                                    'tensor_id': str(tensor_id),  # Convert to string for JSON serialization
+                                    **size_info
+                                })
             
             all_paths.append({
                 'nodes': node_details,
@@ -871,13 +876,13 @@ def visualize_compute_graph_graphviz(connection_info: Dict, output_file: str = '
             for consumer in consumers:
                 # Find tensor size for edge label
                 size_info = ""
-                for output_tensor in connection_info['subfunction_outputs'].get(producer, []):
-                    if output_tensor['tensor_id'] == tensor_id:
-                        size_h = output_tensor.get('size_h')
-                        size_v = output_tensor.get('size_v')
-                        if size_h is not None and size_v is not None:
-                            size_info = f"{size_h}×{size_v}"
-                            break
+                for tensor in connection_info['subfunction_inputs'].get(consumer):
+                        if tensor['tensor_id'] == tensor_id:
+                            size_h = tensor.get('size_h')
+                            size_v = tensor.get('size_v')
+                            if size_h is not None and size_v is not None:
+                                size_info = f"{size_h}×{size_v}"
+                                break
                 
                 dot.edge(producer, consumer, label=size_info)
     

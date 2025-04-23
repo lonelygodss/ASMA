@@ -5,7 +5,7 @@ from model_compiler.compiler_base import CompilerBase
 from typing import List, Dict, Tuple, Optional
 
 
-class ParallelCompiler(CompilerBase):
+class ScatterCompiler(CompilerBase):
     """
     Compiler that handles each function in the GLU-FFN model with specialized methods.
     This gives more granular control over the compilation process for different function types.
