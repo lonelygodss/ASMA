@@ -19,21 +19,21 @@ class FunctionType(Enum):
     ADD = "ADD"                 # Addition operation (for aggregation)
     DATAFOWARD = "DATAFOWARD"   # Data forwarding operation    
 
-class ModuleId:
+class ModuleCoords:
     """Flexible identifier for modules in the model"""
     def __init__(self, **kwargs):
         self.coords = kwargs  # Store all coordinates as a dictionary
     
     @classmethod
     def create(cls, **kwargs):
-        """Factory method to create a ModuleId with specific coordinates"""
+        """Factory method to create a ModuleCoords with specific coordinates"""
         return cls(**kwargs)
     
     def with_coords(self, **kwargs):
-        """Create a new ModuleId with updated coordinates"""
+        """Create a new ModuleCoords with updated coordinates"""
         new_coords = self.coords.copy()
         new_coords.update(kwargs)
-        return ModuleId(**new_coords)
+        return ModuleCoords(**new_coords)
     
     def get(self, key, default=None):
         """Get a coordinate value by key"""
@@ -44,7 +44,7 @@ class ModuleId:
         return f"Module({coords_str})"
     
     def __eq__(self, other):
-        if not isinstance(other, ModuleId):
+        if not isinstance(other, ModuleCoords):
             return False
         return self.coords == other.coords
     
@@ -79,43 +79,43 @@ class Module():
         self.coords = coords
         self.hierarchy_type = hierarchy_type
         self.function_type = function_type
-        self.receive = Dict[ModuleId, Dataflow]
-        self.send = Dict[ModuleId, Dataflow]
+        self.receive = Dict[ModuleCoords, Dataflow]
+        self.send = Dict[ModuleCoords, Dataflow]
         self.energy = 0
         self.area = 0
         self.latency = 0
         self.visit_count = 0
 
-    def regist_receive(self, module_id: ModuleId, dataflow: Dataflow):
+    def regist_receive(self, module_coords: ModuleCoords, dataflow: Dataflow):
         """Add an receive module and its dataflow"""
-        self.receive[module_id] = dataflow
+        self.receive[module_coords] = dataflow
 
-    def get_receive(self) -> Dict[ModuleId, Dataflow]:
+    def get_receive(self) -> Dict[ModuleCoords, Dataflow]:
         """Get the receive modules and their dataflow"""
         return self.receive
     
-    def update_receive(self, module_id: ModuleId, dataflow: Dataflow):
+    def update_receive(self, module_coords: ModuleCoords, dataflow: Dataflow):
         """Update the dataflow for an receive module"""
-        if module_id in self.receive:
-            self.receive[module_id].update(**dataflow.dataflow)
+        if module_coords in self.receive:
+            self.receive[module_coords].update(**dataflow.dataflow)
             self.visit_count += 1
         else:
-            raise KeyError(f"Module {module_id} not found in receive modules.")
+            raise KeyError(f"Module {module_coords} not found in receive modules.")
 
-    def regist_send(self, module_id: ModuleId, dataflow: Dataflow):
+    def regist_send(self, module_coords: ModuleCoords, dataflow: Dataflow):
         """Add a send module and its dataflow"""
-        self.send[module_id] = dataflow
+        self.send[module_coords] = dataflow
     
-    def get_send(self) -> Dict[ModuleId, Dataflow]:
+    def get_send(self) -> Dict[ModuleCoords, Dataflow]:
         """Get the send modules and their dataflow"""
         return self.send
     
-    def update_send(self, module_id: ModuleId, dataflow: Dataflow):
+    def update_send(self, module_coords: ModuleCoords, dataflow: Dataflow):
         """Update the dataflow for a send module"""
-        if module_id in self.send:
-            self.send[module_id].update(**dataflow.dataflow)
+        if module_coords in self.send:
+            self.send[module_coords].update(**dataflow.dataflow)
         else:
-            raise KeyError(f"Module {module_id} not found in send modules.")
+            raise KeyError(f"Module {module_coords} not found in send modules.")
         
 class Hardware():
     """Class for hardware description"""
@@ -128,12 +128,57 @@ class Hardware():
         """Add a module to the hardware description"""
         self.modules.append(module)
     
-    def find_module(self, module_id: ModuleId) -> Optional[Module]:
+    def find_module(self, **criteria) -> Optional[Module]:
         """Find a module by its ID"""
         for module in self.modules:
-            if module.coords == module_id.coords:
+            match = True
+            for key, value in criteria.items():
+                if key == 'hierarchy_type':
+                    if module.hierarchy_type != value:
+                        match = False
+                        break
+                elif key == 'function_type':
+                    if module.function_type != value:
+                        match = False
+                        break
+                elif hasattr(module, key):
+                    if getattr(module, key) != value:
+                        match = False
+                        break
+                elif key in module.coords:
+                    if module.coords[key] != value:
+                        match = False
+                        break
+            if match:
                 return module
         return None
+    
+    def find_modules(self, **criteria) -> List[Module]:
+        """Find modules by specific coordinates"""
+        results = []
+        for module in self.modules:
+            match = True
+            for key, value in criteria.items():
+                if key == 'hierarchy_type':
+                    if module.hierarchy_type != value:
+                        match = False
+                        break
+                elif key == 'function_type':
+                    if module.function_type != value:
+                        match = False
+                        break
+                elif hasattr(module, key):
+                    if getattr(module, key) != value:
+                        match = False
+                        break
+                elif key in module.coords:
+                    if module.coords[key] != value:
+                        match = False
+                        break
+
+            if match:
+                results.append(module)
+        return results
     
 class HardwareCreator():
     """Base class for creating hardware modules"""
