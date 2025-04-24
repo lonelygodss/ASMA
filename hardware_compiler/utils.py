@@ -79,8 +79,8 @@ class Module():
         self.coords = coords
         self.hierarchy_type = hierarchy_type
         self.function_type = function_type
-        self.receive = Dict[ModuleCoords, Dataflow]
-        self.send = Dict[ModuleCoords, Dataflow]
+        self.receive = {}
+        self.send = {}
         self.energy = 0
         self.area = 0
         self.latency = 0

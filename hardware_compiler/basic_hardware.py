@@ -105,18 +105,21 @@ class BasicHardwareCreator(HardwareCreator):
 
                     for i_SubTile in range(self.n_SubTile):
                         # connect PEs within subtile
-                        PE_coords = []
                         PEs = hardware.find_modules(
                             **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, HierarchyType.TILE.value: i_Tile, HierarchyType.SUBTILE.value: i_SubTile,'hierarchy_type': HierarchyType.PE.value}
                         )
-                        for PE in PEs:
-                            PE_coords.append(ModuleCoords(**PE.coords))
-                        
-                        self.connect_wtih_bandwidth(hardware,PE_coords[0], PE_coords[1], 1)
+                        self.connect_wtih_bandwidth(PEs[0], PEs[3], 1)
+                        self.connect_wtih_bandwidth(PEs[1], PEs[4], 1)
+                        self.connect_wtih_bandwidth(PEs[3], PEs[4], 1)
+                        self.connect_wtih_bandwidth(PEs[4], PEs[2], 1)
         
 
                             
 
-    def connect_wtih_bandwidth(self, hardware: Hardware, module_coords1: ModuleCoords, module_coords2: ModuleCoords, bandwidth: int):
+    def connect_wtih_bandwidth(self, module_1: Module, module_2: Module, bandwidth: int):
         """Connect two modules with a bandwidth"""
-        print(module_coords1, module_coords2)
+        dataflow = Dataflow(**{'bandwidth': bandwidth,'data_accumulated':0,'energy_cost':0})
+        module_1.regist_receive(ModuleCoords(**module_2.coords), dataflow)
+        module_2.regist_send(ModuleCoords(**module_1.coords), dataflow)
+        module_1.regist_send(ModuleCoords(**module_2.coords), dataflow)
+        module_2.regist_receive(ModuleCoords(**module_1.coords), dataflow)
