@@ -8,6 +8,8 @@ class HierarchyType(Enum):
     PE = "PE"
     TILE = "TILE"
     SUBTILE = "SUBTILE"
+    CHAIN = "CHAIN"
+    BLOCK = "BLOCK"
 
 class FunctionType(Enum):
     """Enum for different function types"""
@@ -115,8 +117,8 @@ class Module():
         else:
             raise KeyError(f"Module {module_id} not found in send modules.")
         
-class HardwareBase():
-    """Base class for hardware description"""
+class Hardware():
+    """Class for hardware description"""
     def __init__(self):
        self.modules = List[Module]
        self.array_h = 0
@@ -133,5 +135,16 @@ class HardwareBase():
                 return module
         return None
     
+class HardwareCreator():
+    """Base class for creating hardware modules"""
 
-    
+    #kwargs in hardwarecreator is numbers of elements in each hierarchy
+    # e.g. {ACCELERATOR: 1, BANK: 4, PE: 16, TILE: 64, SUBTILE: 256}
+    def __init__(self, array_h: int, array_v: int, **kwargs):
+        self.array_h = array_h
+        self.array_v = array_v
+        self.hierarchy = kwargs
+
+    def create_hardware() -> Hardware:
+        """Create hardware discription. Abstract method to be implemented by subclasses"""
+        return Hardware()
