@@ -18,7 +18,7 @@ def main():
     array_v = 1024      # Vertical size of CIM array
     
     # version control
-    filename = "scatterd3/"
+    filename = "paralleld3/"
 
     # file separation from git
     filedir = "compiled_model/"+filename
@@ -33,7 +33,7 @@ def main():
     # print("\n" + "="*80 + "\n")
     
     # Compile model
-    compiler = ScatterCompiler(array_h, array_v)
+    compiler = ParallelCompiler(array_h, array_v)
     compiled_model = compiler.divide_model(model)
     
     print("Compiled Model:")
