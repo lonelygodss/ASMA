@@ -15,6 +15,14 @@ class BasicHardwareCreator(HardwareCreator):
         self.n_Tile = self.hierarchy[HierarchyType.TILE.value]
         self.n_SubTile = self.hierarchy[HierarchyType.SUBTILE.value]
         self.n_PE = self.hierarchy[HierarchyType.PE.value]
+        self.bandwidth = {
+            'Accelerator to Bank': 100,
+            'Bank to Tile': 100,
+            'Tile to Subtile': 50,
+            'Subtile to Subtile': 10,
+            'Subtile to PE': 1,
+            'PE to PE': 1,
+        }
 
         if self.logflag: 
             print('=============basic hardware info====================')
@@ -95,31 +103,45 @@ class BasicHardwareCreator(HardwareCreator):
 
     def connect_modules(self,hardware: Hardware):
         for i_Accelerator in range(self.n_Accelerator):
+            # find all banks
+            Banks = hardware.find_modules(
+                **{HierarchyType.ACCELERATOR.value: i_Accelerator, 'hierarchy_type':HierarchyType.BANK.value}
+            )
             
-
             for i_Bank in range(self.n_Bank):
-               
-
+                # find all tiles
+                Tiles = hardware.find_modules(
+                    **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, 'hierarchy_type':HierarchyType.TILE.value}
+                )
                 for i_Tile in range(self.n_Tile):
-                    
+                    # connect Tiles to Bank
+                    self.connect_with_bandwidth(Banks[i_Bank], Tiles[i_Tile], self.bandwidth['Bank to Tile'])
+
+                    # find all subtiles
+                    SubTiles = hardware.find_modules(
+                        **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, HierarchyType.TILE.value: i_Tile, 'hierarchy_type':HierarchyType.SUBTILE.value}
+                    )
+
+                    # connect SubTiles with each other
+                    for i_SubTile in range(self.n_SubTile):
+                        self.connect_with_bandwidth(SubTiles[i_SubTile], SubTiles[(i_SubTile+1)%self.n_SubTile], self.bandwidth['Subtile to Subtile'])
+                        # connect Tiles to SubTiles
+                        self.connect_with_bandwidth(Tiles[i_Tile], SubTiles[i_SubTile], self.bandwidth['Tile to Subtile'])
 
                     for i_SubTile in range(self.n_SubTile):
-                        # connect PEs within subtile
+                        #find all PEs
                         PEs = hardware.find_modules(
                             **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, HierarchyType.TILE.value: i_Tile, HierarchyType.SUBTILE.value: i_SubTile,'hierarchy_type': HierarchyType.PE.value}
                         )
-                        self.connect_wtih_bandwidth(PEs[0], PEs[3], 1)
-                        self.connect_wtih_bandwidth(PEs[1], PEs[4], 1)
-                        self.connect_wtih_bandwidth(PEs[3], PEs[4], 1)
-                        self.connect_wtih_bandwidth(PEs[4], PEs[2], 1)
+                        # connect PEs within subtile
+                        for i_PE in range(self.n_PE):
+                            self.connect_with_bandwidth(PEs[i_PE], SubTiles[i_SubTile], self.bandwidth['Subtile to PE'])
+                        # connect PEs with each other
+                        self.connect_with_bandwidth(PEs[0], PEs[3], self.bandwidth['PE to PE'])
+                        self.connect_with_bandwidth(PEs[1], PEs[4], self.bandwidth['PE to PE'])
+                        self.connect_with_bandwidth(PEs[3], PEs[4], self.bandwidth['PE to PE'])
+                        self.connect_with_bandwidth(PEs[4], PEs[2], self.bandwidth['PE to PE'])
         
 
                             
 
-    def connect_wtih_bandwidth(self, module_1: Module, module_2: Module, bandwidth: int):
-        """Connect two modules with a bandwidth"""
-        dataflow = Dataflow(**{'bandwidth': bandwidth,'data_accumulated':0,'energy_cost':0})
-        module_1.regist_receive(ModuleCoords(**module_2.coords), dataflow)
-        module_2.regist_send(ModuleCoords(**module_1.coords), dataflow)
-        module_1.regist_send(ModuleCoords(**module_2.coords), dataflow)
-        module_2.regist_receive(ModuleCoords(**module_1.coords), dataflow)

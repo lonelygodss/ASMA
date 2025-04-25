@@ -86,41 +86,41 @@ class Module():
         self.latency = 0
         self.visit_count = 0
 
-    def regist_receive(self, module_coords: ModuleCoords, dataflow: Dataflow):
+    def regist_receive(self, other: 'Module', dataflow: Dataflow):
         """Add an receive module and its dataflow"""
-        self.receive[module_coords] = dataflow
+        self.receive[other] = dataflow
 
-    def get_receive(self) -> Dict[ModuleCoords, Dataflow]:
+    def get_receive(self) -> Dict:
         """Get the receive modules and their dataflow"""
         return self.receive
     
-    def update_receive(self, module_coords: ModuleCoords, dataflow: Dataflow):
+    def update_receive(self, other: 'Module', dataflow: Dataflow):
         """Update the dataflow for an receive module"""
-        if module_coords in self.receive:
-            self.receive[module_coords].update(**dataflow.dataflow)
+        if other in self.receive:
+            self.receive[other].update(**dataflow.dataflow)
             self.visit_count += 1
         else:
-            raise KeyError(f"Module {module_coords} not found in receive modules.")
+            raise KeyError(f"Module {other} not found in receive modules.")
 
-    def regist_send(self, module_coords: ModuleCoords, dataflow: Dataflow):
+    def regist_send(self, other: 'Module', dataflow: Dataflow):
         """Add a send module and its dataflow"""
-        self.send[module_coords] = dataflow
+        self.send[other] = dataflow
     
-    def get_send(self) -> Dict[ModuleCoords, Dataflow]:
+    def get_send(self) -> Dict:
         """Get the send modules and their dataflow"""
         return self.send
     
-    def update_send(self, module_coords: ModuleCoords, dataflow: Dataflow):
+    def update_send(self, other: 'Module', dataflow: Dataflow):
         """Update the dataflow for a send module"""
-        if module_coords in self.send:
-            self.send[module_coords].update(**dataflow.dataflow)
+        if other in self.send:
+            self.send[other].update(**dataflow.dataflow)
         else:
-            raise KeyError(f"Module {module_coords} not found in send modules.")
+            raise KeyError(f"Module {other} not found in send modules.")
         
 class Hardware():
     """Class for hardware description"""
     def __init__(self):
-       self.modules = List[Module]
+       self.modules = []  # Initialize as empty list instead of List[Module]
        self.array_h = 0
        self.array_v = 0
 
@@ -193,3 +193,11 @@ class HardwareCreator():
     def create_hardware() -> Hardware:
         """Create hardware discription. Abstract method to be implemented by subclasses"""
         return Hardware()
+    
+    def connect_with_bandwidth(self, module_1: Module, module_2: Module, bandwidth: int):
+        """Connect two modules with a bandwidth"""
+        dataflow = Dataflow(**{'bandwidth': bandwidth,'data_accumulated':0,'energy_cost':0})
+        module_1.regist_receive(module_2, dataflow)
+        module_2.regist_send(module_1, dataflow)
+        module_1.regist_send(module_2, dataflow)
+        module_2.regist_receive(module_1, dataflow)
