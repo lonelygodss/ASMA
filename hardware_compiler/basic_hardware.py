@@ -121,21 +121,28 @@ class BasicHardwareCreator(HardwareCreator):
                     SubTiles = hardware.find_modules(
                         **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, HierarchyType.TILE.value: i_Tile, 'hierarchy_type':HierarchyType.SUBTILE.value}
                     )
+                    
+                    # connect all GLUs with each other
+                    GLUs = hardware.find_modules(
+                        **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, HierarchyType.TILE.value: i_Tile, 'hierarchy_type':HierarchyType.PE.value, 'function_type': FunctionType.GLU.value}
+                    )
 
-                    # connect SubTiles with each other
+                    for i_GLUs in range(len(GLUs)):
+                        self.connect_with_bandwidth(GLUs[i_GLUs], GLUs[(i_GLUs+1)%len(GLUs)], self.bandwidth['Subtile to Subtile'])
+
                     for i_SubTile in range(self.n_SubTile):
-                        self.connect_with_bandwidth(SubTiles[i_SubTile], SubTiles[(i_SubTile+1)%self.n_SubTile], self.bandwidth['Subtile to Subtile'])
-                        # connect Tiles to SubTiles
+                        #connect subtiles to tiles
                         self.connect_with_bandwidth(Tiles[i_Tile], SubTiles[i_SubTile], self.bandwidth['Tile to Subtile'])
-
-                    for i_SubTile in range(self.n_SubTile):
                         #find all PEs
                         PEs = hardware.find_modules(
                             **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, HierarchyType.TILE.value: i_Tile, HierarchyType.SUBTILE.value: i_SubTile,'hierarchy_type': HierarchyType.PE.value}
                         )
+                        
                         # connect PEs within subtile
-                        for i_PE in range(self.n_PE):
-                            self.connect_with_bandwidth(PEs[i_PE], SubTiles[i_SubTile], self.bandwidth['Subtile to PE'])
+                        self.connect_with_bandwidth(PEs[0], SubTiles[i_SubTile], self.bandwidth['Subtile to PE'])
+                        self.connect_with_bandwidth(PEs[1], SubTiles[i_SubTile], self.bandwidth['Subtile to PE'])
+                        self.connect_with_bandwidth(PEs[2], SubTiles[i_SubTile], self.bandwidth['Subtile to PE'])
+                        
                         # connect PEs with each other
                         self.connect_with_bandwidth(PEs[0], PEs[3], self.bandwidth['PE to PE'])
                         self.connect_with_bandwidth(PEs[1], PEs[4], self.bandwidth['PE to PE'])
