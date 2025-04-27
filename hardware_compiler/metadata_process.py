@@ -1,325 +1,211 @@
+import os
 import graphviz
 from hardware_compiler.utils import *
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Set, Tuple
 
-class HardwareVisualizer:
-    """Class for visualizing hardware descriptions using graphviz"""
+def visualize_hardware(hardware: Hardware, output_dir="hardware_visualizations", view=False):
+    """
+    Visualize the hardware hierarchy using graphviz, showing all levels in a single graph.
     
-    def __init__(self, hardware: Hardware):
-        self.hardware = hardware
-        # Color scheme for hierarchy types
-        self.color_map = {
-            HierarchyType.ACCELERATOR.value: "#E8F8F5",  # Light Teal
-            HierarchyType.BANK.value: "#EAFAF1",         # Light Green
-            HierarchyType.TILE.value: "#FEF9E7",         # Light Yellow
-            HierarchyType.SUBTILE.value: "#F9EBEA",      # Light Red
-            HierarchyType.PE.value: "#EBF5FB",           # Light Blue
-        }
-        
-        # Color scheme for function types
-        self.function_color_map = {
-            FunctionType.MVM.value: "#AED6F1",          # Blue
-            FunctionType.ACTIVATION.value: "#F5B7B1",   # Red
-            FunctionType.GLU.value: "#F9E79F",          # Yellow
-            FunctionType.ADD.value: "#A9DFBF",          # Green
-            FunctionType.DATAFOWARD.value: "#D7BDE2",   # Purple
-        }
-        
-        # Define hierarchy order for proper nesting
-        self.hierarchy_levels = [
-            HierarchyType.ACCELERATOR.value,
-            HierarchyType.BANK.value,
-            HierarchyType.TILE.value,
-            HierarchyType.SUBTILE.value,
-            HierarchyType.PE.value
-        ]
+    Args:
+        hardware: The hardware description
+        output_dir: Directory to save visualization files
+        view: Whether to open the visualization after creation
+    """
+    # Create main graph
+    dot = graphviz.Digraph(name="Hardware_Hierarchy", 
+                          comment="Hardware Hierarchy Visualization",
+                          format="pdf")
     
-    def generate_node_id(self, module: Module) -> str:
-        """Generate a unique ID for a module based on its coordinates"""
-        coords = [f"{k}_{v}" for k, v in sorted(module.coords.items())]
-        return "_".join(coords)
+    # Use fdp engine which handles large graphs better
+    dot.attr(engine="fdp")
     
-    def generate_node_label(self, module: Module, include_coords: bool = True) -> str:
-        """Generate a human-readable label for a module"""
-        if include_coords:
-            coords = [f"{k}={v}" for k, v in sorted(module.coords.items())]
-            return f"{module.hierarchy_type}\n({', '.join(coords)})\n{module.function_type}"
-        else:
-            return f"{module.hierarchy_type}\n{module.function_type}"
+    # Set graph attributes
+    dot.attr(overlap="false", splines="true", fontname="Arial")
+    dot.attr("node", shape="box", style="filled", fontname="Arial", margin="0.2")
     
-    def visualize_hierarchy(self, output_path: str = "hardware_hierarchy", view: bool = True):
-        """Visualize the hardware hierarchy with proper nesting of modules"""
-        dot = graphviz.Digraph('Hardware Hierarchy', 
-                              filename=f"{output_path}.gv",
-                              engine='dot',
-                              format='pdf')
-        dot.attr(rankdir='TB', size='14,14', dpi='300', newrank='true')
-        
-        # Group modules by their hierarchical position
-        hierarchy_dict = self._build_hierarchy_dict()
-        
-        # Recursively create nested clusters to represent containment
-        self._add_hierarchy_clusters(dot, hierarchy_dict)
-        
-        dot.render(view=view)
-        return dot
+    # Create a simplified visualization
+    create_simplified_hierarchy(dot, hardware)
     
-    def _build_hierarchy_dict(self) -> dict:
-        """Build a nested dictionary representing the hardware hierarchy"""
-        hierarchy_dict = {}
-        
-        # Start with Accelerator level
-        for module in self.hardware.modules:
-            if module.hierarchy_type == HierarchyType.ACCELERATOR.value:
-                acc_id = module.coords[HierarchyType.ACCELERATOR.value]
-                if acc_id not in hierarchy_dict:
-                    hierarchy_dict[acc_id] = {
-                        'module': module,
-                        'banks': {}
-                    }
-        
-        # Add Banks within each Accelerator
-        for module in self.hardware.modules:
-            if module.hierarchy_type == HierarchyType.BANK.value:
-                acc_id = module.coords[HierarchyType.ACCELERATOR.value]
-                bank_id = module.coords[HierarchyType.BANK.value]
-                if acc_id in hierarchy_dict:
-                    hierarchy_dict[acc_id]['banks'][bank_id] = {
-                        'module': module,
-                        'tiles': {}
-                    }
-        
-        # Add Tiles within each Bank
-        for module in self.hardware.modules:
-            if module.hierarchy_type == HierarchyType.TILE.value:
-                acc_id = module.coords[HierarchyType.ACCELERATOR.value]
-                bank_id = module.coords[HierarchyType.BANK.value]
-                tile_id = module.coords[HierarchyType.TILE.value]
-                if acc_id in hierarchy_dict and bank_id in hierarchy_dict[acc_id]['banks']:
-                    hierarchy_dict[acc_id]['banks'][bank_id]['tiles'][tile_id] = {
-                        'module': module,
-                        'subtiles': {}
-                    }
-        
-        # Add SubTiles within each Tile
-        for module in self.hardware.modules:
-            if module.hierarchy_type == HierarchyType.SUBTILE.value:
-                acc_id = module.coords[HierarchyType.ACCELERATOR.value]
-                bank_id = module.coords[HierarchyType.BANK.value]
-                tile_id = module.coords[HierarchyType.TILE.value]
-                subtile_id = module.coords[HierarchyType.SUBTILE.value]
-                if (acc_id in hierarchy_dict and 
-                    bank_id in hierarchy_dict[acc_id]['banks'] and 
-                    tile_id in hierarchy_dict[acc_id]['banks'][bank_id]['tiles']):
-                    hierarchy_dict[acc_id]['banks'][bank_id]['tiles'][tile_id]['subtiles'][subtile_id] = {
-                        'module': module,
-                        'pes': {}
-                    }
-        
-        # Add PEs within each SubTile
-        for module in self.hardware.modules:
-            if module.hierarchy_type == HierarchyType.PE.value:
-                acc_id = module.coords[HierarchyType.ACCELERATOR.value]
-                bank_id = module.coords[HierarchyType.BANK.value]
-                tile_id = module.coords[HierarchyType.TILE.value]
-                subtile_id = module.coords[HierarchyType.SUBTILE.value]
-                pe_id = module.coords[HierarchyType.PE.value]
-                path = hierarchy_dict.get(acc_id, {}).get('banks', {}).get(bank_id, {}).get('tiles', {}).get(tile_id, {}).get('subtiles', {})
-                if subtile_id in path:
-                    path[subtile_id]['pes'][pe_id] = {
-                        'module': module
-                    }
-        
-        return hierarchy_dict
+    # Save and render the visualization
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = os.path.join(output_dir, "hardware_hierarchy")
     
-    def _add_hierarchy_clusters(self, dot, hierarchy_dict, prefix=""):
-        """Recursively add clusters to represent nested hierarchy"""
-        # Add Accelerator level
-        for acc_id, acc_data in hierarchy_dict.items():
-            acc_module = acc_data['module']
-            acc_node_id = self.generate_node_id(acc_module)
-            
-            with dot.subgraph(name=f"cluster_acc_{acc_id}") as acc_cluster:
-                acc_cluster.attr(label=f"Accelerator {acc_id}", style='filled', fillcolor=self.color_map[HierarchyType.ACCELERATOR.value])
-                acc_cluster.node(acc_node_id, self.generate_node_label(acc_module, include_coords=False))
-                
-                # Add Banks within this Accelerator
-                for bank_id, bank_data in acc_data['banks'].items():
-                    bank_module = bank_data['module']
-                    bank_node_id = self.generate_node_id(bank_module)
-                    
-                    with acc_cluster.subgraph(name=f"cluster_bank_{acc_id}_{bank_id}") as bank_cluster:
-                        bank_cluster.attr(label=f"Bank {bank_id}", style='filled', fillcolor=self.color_map[HierarchyType.BANK.value])
-                        bank_cluster.node(bank_node_id, self.generate_node_label(bank_module, include_coords=False))
-                        
-                        # Add Tiles within this Bank
-                        for tile_id, tile_data in bank_data['tiles'].items():
-                            tile_module = tile_data['module']
-                            tile_node_id = self.generate_node_id(tile_module)
-                            
-                            with bank_cluster.subgraph(name=f"cluster_tile_{acc_id}_{bank_id}_{tile_id}") as tile_cluster:
-                                tile_cluster.attr(label=f"Tile {tile_id}", style='filled', fillcolor=self.color_map[HierarchyType.TILE.value])
-                                tile_cluster.node(tile_node_id, self.generate_node_label(tile_module, include_coords=False))
-                                
-                                # Add SubTiles within this Tile
-                                for subtile_id, subtile_data in tile_data['subtiles'].items():
-                                    subtile_module = subtile_data['module']
-                                    subtile_node_id = self.generate_node_id(subtile_module)
-                                    
-                                    with tile_cluster.subgraph(name=f"cluster_subtile_{acc_id}_{bank_id}_{tile_id}_{subtile_id}") as subtile_cluster:
-                                        subtile_cluster.attr(label=f"SubTile {subtile_id}", style='filled', fillcolor=self.color_map[HierarchyType.SUBTILE.value])
-                                        subtile_cluster.node(subtile_node_id, self.generate_node_label(subtile_module, include_coords=False))
-                                        
-                                        # Add PEs within this SubTile
-                                        for pe_id, pe_data in subtile_data['pes'].items():
-                                            pe_module = pe_data['module']
-                                            pe_node_id = self.generate_node_id(pe_module)
-                                            
-                                            # Add PE with function type coloring
-                                            subtile_cluster.node(pe_node_id, 
-                                                               f"PE {pe_id}\n{pe_module.function_type}", 
-                                                               style='filled', 
-                                                               fillcolor=self.function_color_map[pe_module.function_type])
+    try:
+        dot.render(output_path, view=view)
+        print(f"Visualization saved to {output_path}.pdf")
+    except Exception as e:
+        print(f"Error rendering visualization: {e}")
+        # Try with even simpler settings
+        try:
+            dot.attr(engine="neato")
+            dot.attr(overlap="scale", splines="line")
+            dot.render(output_path + "_simple", view=view)
+            print(f"Simplified visualization saved to {output_path}_simple.pdf")
+        except Exception as e:
+            print(f"Error rendering simplified visualization: {e}")
     
-    def visualize_connections(self, output_path: str = "hardware_connections", view: bool = True):
-        """Visualize the hardware connections with hierarchical nesting"""
-        dot = graphviz.Digraph('Hardware Connections', 
-                              filename=f"{output_path}.gv",
-                              engine='dot',
-                              format='pdf')
-        dot.attr(rankdir='TB', size='14,14', dpi='300', newrank='true')
-        
-        # Build the hierarchy dictionary
-        hierarchy_dict = self._build_hierarchy_dict()
-        
-        # Create the nested structure
-        self._add_hierarchy_clusters(dot, hierarchy_dict)
-        
-        # Add connection edges
-        added_edges = set()
-        
-        # Process connections within the same hierarchy level
-        for module in self.hardware.modules:
-            src_id = self.generate_node_id(module)
-            
-            for target, dataflow in module.send.items():
-                dst_id = self.generate_node_id(target)
-                edge_key = (src_id, dst_id)
-                
-                if edge_key not in added_edges:
-                    bandwidth = dataflow.get('bandwidth', 1)
-                    thickness = min(5, max(1, 0.5 + bandwidth / 20))  # Scale thickness by bandwidth
-                    
-                    # Different edge styles based on the relationship
-                    if module.hierarchy_type == target.hierarchy_type:
-                        # Same-level connections
-                        dot.edge(src_id, dst_id, label=f"BW={bandwidth}", 
-                                penwidth=str(thickness), color="blue")
-                    else:
-                        # Different level connections
-                        dot.edge(src_id, dst_id, label=f"BW={bandwidth}", 
-                                penwidth=str(thickness), color="green",
-                                style="dashed" if module.hierarchy_type > target.hierarchy_type else "solid")
-                    
-                    added_edges.add(edge_key)
-        
-        dot.render(view=view)
-        return dot
+    # Create additional visualizations for specific hierarchy groupings
+    create_hierarchy_level_visualizations(hardware, output_dir, view)
     
-    def visualize_function_view(self, output_path: str = "hardware_functions", view: bool = True):
-        """Visualize modules grouped by function types with hierarchical structure"""
-        dot = graphviz.Digraph('Hardware Functions', 
-                              filename=f"{output_path}.gv",
-                              engine='dot',
-                              format='pdf')
-        dot.attr(rankdir='TB', size='14,14', dpi='300', newrank='true')
-        
-        # First group by function type
-        function_groups = {}
-        for module in self.hardware.modules:
-            if module.function_type not in function_groups:
-                function_groups[module.function_type] = []
-            function_groups[module.function_type].append(module)
-        
-        # Create main clusters by function type
-        for function_type, modules in function_groups.items():
-            with dot.subgraph(name=f"cluster_{function_type}") as func_cluster:
-                func_cluster.attr(label=f"{function_type}", style='filled', 
-                                fillcolor=self.function_color_map[function_type])
-                
-                # Group modules by hierarchy type within function cluster
-                hierarchy_modules = {}
-                for module in modules:
-                    hierarchy_type = module.hierarchy_type
-                    if hierarchy_type not in hierarchy_modules:
-                        hierarchy_modules[hierarchy_type] = []
-                    hierarchy_modules[hierarchy_type].append(module)
-                
-                # Create nested clusters for each hierarchy level
-                for hierarchy in self.hierarchy_levels:
-                    if hierarchy in hierarchy_modules:
-                        # Further group by parent coordinates
-                        parent_groups = {}
-                        for module in hierarchy_modules[hierarchy]:
-                            # Create parent key based on hierarchy
-                            parent_key = "_".join([f"{k}_{v}" for k, v in sorted(module.coords.items()) 
-                                                if k != hierarchy])
-                            if parent_key not in parent_groups:
-                                parent_groups[parent_key] = []
-                            parent_groups[parent_key].append(module)
-                        
-                        # Create clusters for each parent group
-                        for parent_key, parent_modules in parent_groups.items():
-                            cluster_name = f"cluster_{function_type}_{hierarchy}_{parent_key}"
-                            with func_cluster.subgraph(name=cluster_name) as hier_cluster:
-                                if parent_modules:
-                                    coords_str = ", ".join([f"{k}={v}" for k, v in sorted(parent_modules[0].coords.items()) 
-                                                        if k != hierarchy])
-                                    hier_cluster.attr(label=f"{hierarchy} ({coords_str})", 
-                                                    style='filled', 
-                                                    fillcolor=self.color_map[hierarchy])
-                                    
-                                    # Add nodes to this cluster
-                                    for module in parent_modules:
-                                        node_id = self.generate_node_id(module)
-                                        if hierarchy == HierarchyType.PE.value:
-                                            hier_cluster.node(node_id, 
-                                                            f"PE {module.coords[HierarchyType.PE.value]}", 
-                                                            shape='box')
-                                        else:
-                                            hier_cluster.node(node_id, 
-                                                            f"{hierarchy} {module.coords[hierarchy]}", 
-                                                            shape='box')
-        
-        # Add edges for dataflow connections between different function types
-        # We only show inter-function connections to reduce visual clutter
-        added_edges = set()
-        for module in self.hardware.modules:
-            src_id = self.generate_node_id(module)
-            
-            for target, dataflow in module.send.items():
-                if module.function_type != target.function_type:
-                    dst_id = self.generate_node_id(target)
-                    edge_key = (src_id, dst_id)
-                    
-                    if edge_key not in added_edges:
-                        bandwidth = dataflow.get('bandwidth', 1)
-                        dot.edge(src_id, dst_id, label=f"BW={bandwidth}", 
-                                color="darkgreen", penwidth=str(min(3, max(1, bandwidth/30))))
-                        added_edges.add(edge_key)
-        
-        dot.render(view=view)
-        return dot
+    return output_path + ".pdf"
 
-def visualize_hardware(hardware: Hardware, output_dir: str = "", view: bool = True):
-    """Convenience function to generate all hardware visualizations"""
-    visualizer = HardwareVisualizer(hardware)
+def create_simplified_hierarchy(dot, hardware):
+    """Create a simplified visualization of the hardware hierarchy"""
+    # Add all modules as nodes
+    for module in hardware.modules:
+        node_id = get_node_id(module)
+        label = get_node_label(module)
+        
+        dot.node(node_id, 
+                label=label,
+                fillcolor=get_color_for_function(module.function_type),
+                tooltip=str(module.coords))
     
-    prefix = output_dir + "/" if output_dir else ""
+    # Add connections between modules
+    add_connections(dot, hardware)
     
-    # Generate three different visualization views
-    visualizer.visualize_hierarchy(output_path=f"{prefix}hardware_hierarchy", view=view)
-    visualizer.visualize_connections(output_path=f"{prefix}hardware_connections", view=view)
-    visualizer.visualize_function_view(output_path=f"{prefix}hardware_functions", view=view)
+    # Add invisible edges to represent hierarchy
+    add_hierarchy_edges(dot, hardware)
+
+def add_connections(dot, hardware):
+    """Add connections between modules based on dataflow"""
+    added_edges = set()
     
-    print(f"Generated hardware visualizations with proper hierarchical nesting")
+    for module in hardware.modules:
+        for receiver, dataflow in module.send.items():
+            # Create a unique edge identifier
+            edge_id = (get_node_id(module), get_node_id(receiver))
+            reverse_edge_id = (edge_id[1], edge_id[0])
+            
+            # Only add if we haven't added this edge or its reverse
+            if edge_id not in added_edges and reverse_edge_id not in added_edges:
+                bandwidth = dataflow.get('bandwidth', 0)
+                
+                # Use different colors for connections between different hierarchy levels
+                if module.hierarchy_type != receiver.hierarchy_type:
+                    color = "red"
+                    style = "dashed"
+                else:
+                    color = "blue"
+                    style = "solid"
+                
+                # Use xlabel instead of label for orthogonal edges
+                dot.edge(edge_id[0], edge_id[1], 
+                        xlabel=f"{bandwidth}",  # Use xlabel instead of label
+                        penwidth=str(min(1 + bandwidth/20, 3)),  # Scale line width with bandwidth
+                        color=color,
+                        style=style)
+                added_edges.add(edge_id)
+
+def add_hierarchy_edges(dot, hardware):
+    """Add invisible edges to represent the hierarchy"""
+    hierarchy_order = get_hierarchy_levels(hardware)
+    
+    # For each module, connect it to its parent with an invisible edge
+    for i in range(1, len(hierarchy_order)):
+        child_level = hierarchy_order[i]
+        parent_level = hierarchy_order[i-1]
+        
+        child_modules = hardware.find_modules(hierarchy_type=child_level)
+        
+        for child in child_modules:
+            # Find the parent of this child
+            parent_coords = {k: v for k, v in child.coords.items() if k != child.hierarchy_type}
+            parent = hardware.find_module(hierarchy_type=parent_level, **parent_coords)
+            
+            if parent:
+                dot.edge(get_node_id(parent), get_node_id(child), 
+                        style="dotted", 
+                        color="gray", 
+                        constraint="true",
+                        weight="0.1")
+
+def create_hierarchy_level_visualizations(hardware, output_dir, view):
+    """Create separate visualizations for each hierarchy level and their connections"""
+    hierarchy_levels = get_hierarchy_levels(hardware)
+    
+    for level in hierarchy_levels:
+        # Create a new graph for this level
+        level_dot = graphviz.Digraph(name=f"Hardware_{level}", 
+                                    comment=f"{level} Level Visualization",
+                                    format="pdf",
+                                    engine="neato")
+        
+        level_dot.attr(overlap="false", splines="true")
+        level_dot.attr("node", shape="box", style="filled", fontname="Arial")
+        
+        # Get all modules at this level
+        modules_at_level = hardware.find_modules(hierarchy_type=level)
+        
+        # Create nodes for each module
+        for module in modules_at_level:
+            node_id = get_node_id(module)
+            level_dot.node(node_id, 
+                          label=get_node_label(module),
+                          fillcolor=get_color_for_function(module.function_type),
+                          tooltip=str(module.coords))
+        
+        # Add connections between modules at this level
+        for module in modules_at_level:
+            for receiver, dataflow in module.send.items():
+                # Only add connections to modules at the same level
+                if receiver.hierarchy_type == level:
+                    bandwidth = dataflow.get('bandwidth', 0)
+                    level_dot.edge(get_node_id(module), get_node_id(receiver), 
+                                 xlabel=f"{bandwidth}",
+                                 penwidth=str(min(1 + bandwidth/20, 3)),
+                                 color="blue")
+        
+        # Save and render the visualization
+        output_path = os.path.join(output_dir, f"{level}_level")
+        try:
+            level_dot.render(output_path, view=False)  # Don't open all views
+        except Exception as e:
+            print(f"Error rendering {level} level visualization: {e}")
+
+def get_hierarchy_levels(hardware):
+    """Get all hierarchy levels present in the hardware, ordered from highest to lowest"""
+    levels = set()
+    for module in hardware.modules:
+        levels.add(module.hierarchy_type)
+    
+    # Define the hierarchy order
+    hierarchy_order = [
+        HierarchyType.ACCELERATOR.value,
+        HierarchyType.BANK.value,
+        HierarchyType.TILE.value,
+        HierarchyType.SUBTILE.value,
+        HierarchyType.PE.value,
+        HierarchyType.CHAIN.value,
+        HierarchyType.BLOCK.value
+    ]
+    
+    # Return the levels in the correct order
+    return [level for level in hierarchy_order if level in levels]
+
+def get_node_id(module):
+    """Generate a unique ID for a module node"""
+    coords_str = "_".join(f"{k}_{v}" for k, v in sorted(module.coords.items()))
+    return f"{module.hierarchy_type}_{coords_str}"
+
+def get_node_label(module):
+    """Generate a label for a module node"""
+    # Include function type and the lowest level coordinate
+    if not module.coords:
+        return f"{module.hierarchy_type}\n{module.function_type}"
+    
+    # Get the most specific coordinate (the one for this hierarchy level)
+    specific_coord = module.coords.get(module.hierarchy_type, "")
+    return f"{module.hierarchy_type} {specific_coord}\n{module.function_type}"
+
+def get_color_for_function(function_type):
+    """Return a color based on the function type"""
+    color_map = {
+        FunctionType.MVM.value: "#ffcccc",  # Light red
+        FunctionType.ACTIVATION.value: "#ccffcc",  # Light green
+        FunctionType.GLU.value: "#ccccff",  # Light blue
+        FunctionType.ADD.value: "#ffffcc",  # Light yellow
+        FunctionType.DATAFOWARD.value: "#ffccff",  # Light purple
+    }
+    return color_map.get(function_type, "#ffffff")  # Default to white
