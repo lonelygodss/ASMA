@@ -1,7 +1,7 @@
 from hardware_compiler.utils import *
 from typing import List, Dict, Tuple, Optional, Any, Set
 
-class BasicHardwareCreator(HardwareCreator):
+class ScatterHardwareCreator(HardwareCreator):
     """Class for creating basic hardware description"""
     def create_hardware(self, logflag = False) -> Hardware:
         """Create hardware description"""
@@ -142,7 +142,6 @@ class BasicHardwareCreator(HardwareCreator):
                         self.connect_with_bandwidth_single(SubTiles[i_SubTile], PEs[0], self.bandwidth['Subtile to PE'])
                         self.connect_with_bandwidth_single(SubTiles[i_SubTile], PEs[1], self.bandwidth['Subtile to PE'])
                         self.connect_with_bandwidth_single(PEs[2], SubTiles[i_SubTile], self.bandwidth['Subtile to PE'])
-                        self.connect_with_bandwidth_bothsides(PEs[4], SubTiles[i_SubTile], self.bandwidth['Subtile to PE'])
                         
                         # connect PEs with each other
                         self.connect_with_bandwidth_single(PEs[0], PEs[3], self.bandwidth['PE to PE'])

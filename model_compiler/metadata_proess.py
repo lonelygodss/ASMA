@@ -1,6 +1,7 @@
 #=======================visualization=========================
 import graphviz
-from typing import Dict, Set, List, Any, Tuple
+import re
+from typing import Dict, Set, List, Any, Tuple, OrderedDict
 from model_compiler.utils import OperationType, TensorId, TensorWithSize, Function, SubFunction, Model, CompiledModel
 
 
@@ -1114,3 +1115,40 @@ def export_model_to_hardware_spec(connection_info: Dict, output_file: str):
         json.dump(hw_config, f, indent=2)
     
     print(f"Hardware specification exported to {output_file}")
+
+def id_to_coords(id_str: str,
+                 offset_map: dict[str, int] | None = None) -> dict[str, int]:
+    """
+    将形如 'sf_MVM_m_0_k_0_i_0_j_0' 的 id 字符串解析为坐标字典。
+
+    参数
+    ----
+    id_str : str
+        待解析的 id 字符串。
+    offset_map : dict[str, int] | None
+        每个维度在索引值基础上再偏移多少,默认为 {'m':1, 'k':1, 'i':2, 'j':2}。
+        如果传入 None,则使用上述默认偏移。
+
+
+    返回
+    ----
+    dict[str, int]
+        解析出的坐标字典，例如 {'k':1, 'm':1, 'n':1, 'i':2, 'j':2}。
+    """
+    # 默认偏移规则
+    if offset_map is None:
+        offset_map = {'m': 0, 'k': 0, 'i': 0, 'j': 0}
+
+    # pattern 捕获形如 "_m_0"、“_i_12” 这样的字段
+    pattern = re.compile(r'_([mknij])_(-?\d+)')
+    matches = pattern.findall(id_str)
+
+    coords = {}
+
+
+    for dim, index_str in matches:
+        index = int(index_str)
+        offset = offset_map.get(dim, 0)      # 若 dim 未定义偏移量则视为 0
+        coords[dim] = index + offset
+
+    return coords

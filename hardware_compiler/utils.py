@@ -124,6 +124,7 @@ class Hardware():
        self.modules = []  # Initialize as empty list instead of List[Module]
        self.array_h = 0
        self.array_v = 0
+       self.graph = {}
 
     def add_module(self, module: Module):
         """Add a module to the hardware description"""
@@ -181,6 +182,14 @@ class Hardware():
                 results.append(module)
         return results
     
+    def generate_hardware_graph(self) -> Dict[Module, List[Module]]:
+        """Generate a hardware graph based on the hierarchy"""
+        for module in self.modules:
+            self.graph[module] = []
+            for target in module.send.keys():
+                if target in self.modules:
+                    self.graph[module].append(target)
+    
 class HardwareCreator():
     """Base class for creating hardware modules"""
 
@@ -195,10 +204,17 @@ class HardwareCreator():
         """Create hardware discription. Abstract method to be implemented by subclasses"""
         return Hardware()
     
-    def connect_with_bandwidth(self, module_1: Module, module_2: Module, bandwidth: int):
+    def connect_with_bandwidth_bothsides(self, module_1: Module, module_2: Module, bandwidth: int):
         """Connect two modules with a bandwidth"""
         dataflow = Dataflow(**{'bandwidth': bandwidth,'data_accumulated':0,'energy_cost':0})
         module_1.regist_receive(module_2, dataflow)
         module_2.regist_send(module_1, dataflow)
         module_1.regist_send(module_2, dataflow)
         module_2.regist_receive(module_1, dataflow)
+
+    def connect_with_bandwidth_single(self, module_1: Module, module_2: Module, bandwidth: int):
+        """Connect two modules with a bandwidth"""
+        dataflow = Dataflow(**{'bandwidth': bandwidth,'data_accumulated':0,'energy_cost':0})
+        module_1.regist_send(module_2, dataflow)
+        module_2.regist_receive(module_1, dataflow)
+
