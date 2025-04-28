@@ -85,6 +85,7 @@ class Module():
         self.area = 0
         self.latency = 0
         self.visit_count = 0
+        self.available_map = {}
 
     def regist_receive(self, other: 'Module', dataflow: Dataflow):
         """Add an receive module and its dataflow"""
