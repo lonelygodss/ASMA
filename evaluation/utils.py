@@ -72,7 +72,7 @@ class Dataflow_parser():
         self.mapping = mapping
         self.dataflow_path = dataflow_path
 
-    def parse_dataflow(self):
+    def parse_dataflow(self, flag: bool = False):
         """Parse the dataflow information"""
         # Implement the parsing logic here
         for model_path in self.dataflow_path:
@@ -90,22 +90,22 @@ class Dataflow_parser():
                 target_module = self.mapping.get(dest_sf[0])
                 # Update the dataflow
                 if initial_module and target_module:
-                    print('find path for: ',source_id,' to ',dest_id)
-                    self.update_dataflow(initial_module, target_module, 1)
-        print('parsing finished!')
+                    if flag: print('find path for: ',source_id,' to ',dest_id)
+                    self.update_dataflow(initial_module, target_module, 1,flag)
+        if flag : print('parsing finished!')
                 
 
-    def update_dataflow(self, module_init: Module, module_target: Module, count: int):
+    def update_dataflow(self, module_init: Module, module_target: Module, count: int, flag: bool = False):
         """Update the dataflow information"""
         # Find hardware pathes connecting the two modules
-        hardware_pathes = self.find_hardware_pathes(module_init, module_target)
+        hardware_pathes = self.find_hardware_pathes(module_init, module_target,flag)
 
-    def find_hardware_pathes(self, module_init: Module, module_target: Module) -> List[Tuple[Module]]:
+    def find_hardware_pathes(self, module_init: Module, module_target: Module, flag: bool = False) -> List[Tuple[Module]]:
         """Find hardware pathes connecting the two modules"""
 
         hardware_pathes = shortest_paths(module_init, module_target, self.hardware.graph)
-        print('path found:')
-        print(" -> ".join(f"{m.coords}" for m in hardware_pathes[0]))
-        print('=====================')
+        if flag : print('path found:')
+        if flag : print(" -> ".join(f"{m.coords}" for m in hardware_pathes[0]))
+        if flag : print('=====================')
         # Implement the logic to find hardware pathes
     
