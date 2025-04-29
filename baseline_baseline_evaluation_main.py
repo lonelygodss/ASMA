@@ -6,7 +6,7 @@ from model_compiler.scatter_compiler import ScatterCompiler
 import model_compiler.metadata_proess as dataproc
 from hardware_compiler.utils import *
 from hardware_compiler.baseline_hardware import *
-from mapping.baseline_mapping import BaselineMapping
+from mapping.baseline_baseline_mapping import BaselineMapping
 from evaluation.utils import Dataflow_parser
 
 
