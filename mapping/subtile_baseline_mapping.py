@@ -5,7 +5,6 @@ class BaselineMapping(Map_Compiledmodel_to_Hardware):
     """Trivial mapping of compiled model to hardware"""
     def __init__(self, compiled_model: CompiledModel, hardware: Hardware):
         super().__init__(compiled_model, hardware)
-        self.tile_entry = 0
         
     
     def map(self):
@@ -18,10 +17,8 @@ class BaselineMapping(Map_Compiledmodel_to_Hardware):
             # For each subfunction, find a suitable hardware module
             # and create a mapping entry
             hardware_module = self.map_available_module(subfunction)
-            if hardware_module:
-                print('successfully mapped subfunction:', subfunction.coords, 'to hardware module:', hardware_module.coords, ' current tile:', self.tile_entry)
-            else:
-                print('failed to map subfunction:', subfunction.coords, 'function type',subfunction.op_type.value)
+            # if hardware_module:
+            #     print('successfully mapped subfunction:', subfunction.coords, 'to hardware module:', hardware_module.coords)
             
     def map_available_module(self, subfunction:SubFunction)-> Optional[Module]:
         """Find an available hardware module for the given subfunction"""
@@ -31,17 +28,9 @@ class BaselineMapping(Map_Compiledmodel_to_Hardware):
         for module in self.hardware.modules:
             occupy = self.is_available(module, subfunction)
             if occupy:
-                if module.available_map[occupy] and module.function_type == FunctionType.MVM.value:
+                if module.available_map[occupy] or (module.hierarchy_type == HierarchyType.TILE.value and subfunction.op_type == OperationType.DISTRIBUTE):
                     self.mapping[subfunction] = module
                     module.available_map[occupy] = False
-                    self.tile_entry = module.coords['TILE']
-                    return module
-                # use tile_entry to force other subfunction follow mvm tile wise
-                elif module.hierarchy_type == HierarchyType.ACCELERATOR.value or module.hierarchy_type == HierarchyType.BANK.value:
-                    self.mapping[subfunction] = module
-                    return module
-                elif module.function_type != OperationType.MVM.value and module.coords['TILE'] == self.tile_entry:
-                    self.mapping[subfunction] = module
                     return module
         return None
     
@@ -52,21 +41,32 @@ class BaselineMapping(Map_Compiledmodel_to_Hardware):
         occupy = None
         if subfunction.op_type == OperationType.MVM:
             if module.hierarchy_type == HierarchyType.PE.value and module.function_type == FunctionType.MVM.value:
-                occupy = 'mvm_calculate'
+                if subfunction.parent_function.name == 'up_proj':
+                    if module.coords['PE'] == 0:
+                        occupy = 'mvm_calculate'
+                elif subfunction.parent_function.name == 'gate_proj':
+                    if module.coords['PE'] == 1:
+                        occupy = 'mvm_calculate'
+                elif subfunction.parent_function.name == 'down_proj':
+                    if module.coords['PE'] == 2:
+                        occupy = 'mvm_calculate'
         elif subfunction.op_type == OperationType.GLU:
             if module.hierarchy_type == HierarchyType.PE.value and module.function_type == FunctionType.GLU.value:
-                occupy = 'glu_calculate'
+                if module.coords['PE'] == 4:
+                    occupy = 'glu_calculate'
         elif subfunction.op_type == OperationType.ACTIVATION:
             if module.hierarchy_type == HierarchyType.PE.value and module.function_type == FunctionType.ACTIVATION.value:
-                occupy = 'activation_calculate'
+                if module.coords['PE'] == 3:
+                    occupy = 'activation_calculate'
         elif subfunction.op_type == OperationType.ADD:
             if module.hierarchy_type == HierarchyType.PE.value and module.function_type == FunctionType.ADD.value:
-                occupy = 'addition'
+                if module.hierarchy_type == HierarchyType.SUBTILE.value:
+                    occupy = 'addition'
         elif subfunction.op_type == OperationType.DISTRIBUTE:
-            if module.hierarchy_type == HierarchyType.BANK.value:
+            if module.hierarchy_type == HierarchyType.TILE.value:
                 occupy = 'distribution'
         elif subfunction.op_type == OperationType.CONCAT:
-            if module.hierarchy_type == HierarchyType.BANK.value:
+            if module.hierarchy_type == HierarchyType.TILE.value:
                 occupy = 'concatenation'
         return occupy
             
@@ -87,19 +87,19 @@ class BaselineMapping(Map_Compiledmodel_to_Hardware):
                     module.available_map = {
                         'activation_calculate': True
                     }
-                elif module.function_type == FunctionType.ADD.value:
-                    module.available_map = {
-                        'addition': True
-                    }
-            elif module.hierarchy_type == HierarchyType.BANK.value:
+            elif module.hierarchy_type == HierarchyType.SUBTILE.value:
+                module.available_map = {
+                    'addition': True
+                }
+            elif module.hierarchy_type == HierarchyType.TILE.value:
                 module.available_map = {
                     'distribution': True,
-                    'concatenation': True,
+                    'concatenation': True
                 }
 
     def initialize_sequences(self):
         subfunction_sequence = ['n','m','k','j','i']
-        module_sequence = ['ACCELERATOR','BANK','TILE','PE']
+        module_sequence = ['ACCELERATOR','BANK','TILE','SUBTILE','PE']
 
         self.compiled_model.subfunctions.sort(key = lambda o: tuple(o.coords[k] for k in subfunction_sequence))
 

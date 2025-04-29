@@ -76,7 +76,7 @@ class Dataflow_parser():
         """Parse the dataflow information"""
         # Implement the parsing logic here
         heat_map_base = self.initialize_heat_map(flag)
-        visualize_heat_map(heat_map_base, "Base Heat Map (Bandwidth)")
+        if True: visualize_heat_map(heat_map_base, "Base Heat Map (Bandwidth)")
         for model_path in self.dataflow_path:
             transfers = model_path.get("transfers", [])
             for transfer in transfers:
@@ -97,12 +97,14 @@ class Dataflow_parser():
                     self.update_dataflow(initial_module, target_module, package)
         if flag : print('parsing finished!')
         heat_map_with_data = self.dataflow_heat_map(flag)
-        visualize_heat_map(heat_map_with_data, "Dataflow Heat Map (Accumulated Data)", True, log_scale= True)
+        if True: visualize_heat_map(heat_map_with_data, "Dataflow Heat Map (Accumulated Data)", True, log_scale= True)
 
     def update_dataflow(self, module_init: Module, module_target: Module, package: int, flag: bool = False):
         """Update the dataflow information"""
         # Find hardware pathes connecting the two modules
         hardware_pathes = self.find_hardware_pathes(module_init, module_target,flag)
+        if not hardware_pathes:
+            print('error')
         path = hardware_pathes[0]
         # Update the dataflow for each module in the path
         for module_index in range(len(path)-1):
