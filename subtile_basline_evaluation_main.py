@@ -20,8 +20,8 @@ def main():
     layer_idx = 1      # First decoder layer
     
     # Define hardware constraints
-    array_h = 1024      # Horizontal size of CIM array
-    array_v = 1024      # Vertical size of CIM array
+    array_h = 2048      # Horizontal size of CIM array
+    array_v = 2048      # Vertical size of CIM array
     
     logflag = False
 
@@ -49,7 +49,7 @@ def main():
         hierarchy = {
         HierarchyType.ACCELERATOR.value: 1,
         HierarchyType.BANK.value: 1,
-        HierarchyType.TILE.value: 3,
+        HierarchyType.TILE.value: 1,
         HierarchyType.SUBTILE.value: 16,
         HierarchyType.PE.value: 5
     }
