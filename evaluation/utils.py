@@ -2,13 +2,13 @@ from enum import Enum
 from typing import List, Dict, Tuple, Set, Optional, Any, Union, Callable, Iterable, TypeVar
 
 from hardware_compiler.utils import *
-
 from model_compiler.utils import *
-
 from mapping.utils import *
 import model_compiler.metadata_proess as dataproc
-
 from collections import deque
+import numpy as np
+import matplotlib.pyplot as plt
+from evaluation.visualize import visualize_heat_map
 
 # 用 TypeVar 而非具体类名,方便在任意 Module 类型上复用
 T = TypeVar("T")
@@ -75,6 +75,8 @@ class Dataflow_parser():
     def parse_dataflow(self, flag: bool = False):
         """Parse the dataflow information"""
         # Implement the parsing logic here
+        heat_map_base = self.initialize_heat_map(flag)
+        visualize_heat_map(heat_map_base, "Base Heat Map (Bandwidth)")
         for model_path in self.dataflow_path:
             transfers = model_path.get("transfers", [])
             for transfer in transfers:
@@ -92,9 +94,10 @@ class Dataflow_parser():
                 # Update the dataflow
                 if initial_module and target_module:
                     if flag: print('find path for: ',source_id,' to ',dest_id)
-                    self.update_dataflow(initial_module, target_module, package,flag)
+                    self.update_dataflow(initial_module, target_module, package)
         if flag : print('parsing finished!')
-                
+        heat_map_with_data = self.dataflow_heat_map(flag)
+        visualize_heat_map(heat_map_with_data, "Dataflow Heat Map (Accumulated Data)", True, log_scale= True)
 
     def update_dataflow(self, module_init: Module, module_target: Module, package: int, flag: bool = False):
         """Update the dataflow information"""
@@ -122,3 +125,38 @@ class Dataflow_parser():
         return        hardware_pathes
         # Implement the logic to find hardware pathes
     
+    def generate_heat_map(self, flag: bool = False):
+        """Generate a heat map for the dataflow"""
+        # Implement the logic to generate a heat map
+        heat_map = self.initialize_heat_map(flag)
+
+    def initialize_heat_map(self,flag: bool = False):
+        """Initialize the heat map"""
+        # Implement the logic to initialize the heat map
+        heat_map = np.zeros((len(self.hardware.modules), len(self.hardware.modules)))
+        for i in range(len(self.hardware.modules)):
+            module_i = self.hardware.modules[i]
+            if module_i.get_send():
+                for j in range(len(self.hardware.modules)):
+                    module_j = self.hardware.modules[j]
+                    if module_j in module_i.get_send():
+                        data_bandwidth = module_i.send[module_j].dataflow['bandwidth']
+                        heat_map[i][j] = data_bandwidth
+                        if flag: print(f"Heat map [{i}][{j}]: {data_bandwidth}")
+        if flag: print('heat map initialized!')
+        return heat_map
+    
+    def dataflow_heat_map(self,flag: bool = False):
+        """generate the heat map with dataflow information"""
+        heat_map = np.zeros((len(self.hardware.modules), len(self.hardware.modules)))
+        for i in range(len(self.hardware.modules)):
+            module_i = self.hardware.modules[i]
+            if module_i.get_send():
+                for j in range(len(self.hardware.modules)):
+                    module_j = self.hardware.modules[j]
+                    if module_j in module_i.get_send():
+                        data_accum = module_i.send[module_j].dataflow['data_accumulated']
+                        heat_map[i][j] = data_accum
+                        if flag: print(f"Heat map [{i}][{j}]: {data_accum}")
+        if flag: print('dataflow heat map generated!')
+        return heat_map        

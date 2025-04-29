@@ -18,10 +18,10 @@ def main():
     layer_idx = 1      # First decoder layer
     
     # Define hardware constraints
-    array_h = 2048      # Horizontal size of CIM array
-    array_v = 2048      # Vertical size of CIM array
+    array_h = 1024      # Horizontal size of CIM array
+    array_v = 1024      # Vertical size of CIM array
     
-    logflag = True
+    logflag = False
 
     # Create model
     model = create_glu_ffn_model(hidden_dim, ffn_dim, layer_idx)
@@ -47,7 +47,7 @@ def main():
         hierarchy = {
         HierarchyType.ACCELERATOR.value: 1,
         HierarchyType.BANK.value: 1,
-        HierarchyType.TILE.value: 5,
+        HierarchyType.TILE.value: 2,
         HierarchyType.SUBTILE.value: 16,
         HierarchyType.PE.value: 5
     }

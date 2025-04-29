@@ -16,11 +16,11 @@ class BasicHardwareCreator(HardwareCreator):
         self.n_SubTile = self.hierarchy[HierarchyType.SUBTILE.value]
         self.n_PE = self.hierarchy[HierarchyType.PE.value]
         self.bandwidth = {
-            'Accelerator to Bank': 100,
-            'Bank to Tile': 100,
-            'Tile to Subtile': 50,
-            'Subtile to Subtile': 10,
-            'Subtile to PE': 1,
+            'Accelerator to Bank': 5,
+            'Bank to Tile': 5,
+            'Tile to Subtile': 4,
+            'Subtile to Subtile': 3,
+            'Subtile to PE': 2,
             'PE to PE': 1,
         }
 
