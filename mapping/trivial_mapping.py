@@ -5,6 +5,8 @@ class TrivialMapping(Map_Compiledmodel_to_Hardware):
     """Trivial mapping of compiled model to hardware"""
     def __init__(self, compiled_model: CompiledModel, hardware: Hardware):
         super().__init__(compiled_model, hardware)
+        self.tile_entry = 0
+        self.subtile_entry = 0
         
     
     def map(self):
@@ -17,8 +19,10 @@ class TrivialMapping(Map_Compiledmodel_to_Hardware):
             # For each subfunction, find a suitable hardware module
             # and create a mapping entry
             hardware_module = self.map_available_module(subfunction)
-            # if hardware_module:
-            #     print('successfully mapped subfunction:', subfunction.coords, 'to hardware module:', hardware_module.coords)
+            if hardware_module:
+                print('successfully mapped subfunction:', subfunction.coords, 'to hardware module:', hardware_module.coords)
+            else:
+                print('failed to map subfunction:', subfunction.coords, 'function type',subfunction.op_type.value)
             
     def map_available_module(self, subfunction:SubFunction)-> Optional[Module]:
         """Find an available hardware module for the given subfunction"""
@@ -28,10 +32,20 @@ class TrivialMapping(Map_Compiledmodel_to_Hardware):
         for module in self.hardware.modules:
             occupy = self.is_available(module, subfunction)
             if occupy:
-                if module.available_map[occupy] or (module.hierarchy_type == HierarchyType.TILE.value and subfunction.op_type == OperationType.DISTRIBUTE):
+                if module.available_map[occupy] and module.hierarchy_type == HierarchyType.PE.value:
                     self.mapping[subfunction] = module
                     module.available_map[occupy] = False
+                    self.subtile_entry = module.coords['SUBTILE']
+                    self.tile_entry = module.coords['TILE']
                     return module
+                elif module.hierarchy_type == HierarchyType.SUBTILE.value:
+                    if module.coords['SUBTILE'] == self.subtile_entry and module.coords['TILE'] == self.tile_entry:
+                        self.mapping[subfunction] = module
+                        return module
+                elif module.hierarchy_type == HierarchyType.TILE.value:
+                    if module.coords['TILE'] == self.tile_entry:
+                        self.mapping[subfunction] = module
+                        return module
         return None
     
     def is_available(self, module:Module, subfunction:SubFunction) -> Optional[str]:
@@ -59,9 +73,8 @@ class TrivialMapping(Map_Compiledmodel_to_Hardware):
                 if module.coords['PE'] == 3:
                     occupy = 'activation_calculate'
         elif subfunction.op_type == OperationType.ADD:
-            if module.hierarchy_type == HierarchyType.PE.value and module.function_type == FunctionType.ADD.value:
-                if module.hierarchy_type == HierarchyType.SUBTILE.value:
-                    occupy = 'addition'
+            if module.hierarchy_type == HierarchyType.SUBTILE.value:
+                occupy = 'addition'
         elif subfunction.op_type == OperationType.DISTRIBUTE:
             if module.hierarchy_type == HierarchyType.TILE.value:
                 occupy = 'distribution'
