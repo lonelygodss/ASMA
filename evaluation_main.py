@@ -21,7 +21,7 @@ def main():
     array_h = 2048      # Horizontal size of CIM array
     array_v = 2048      # Vertical size of CIM array
     
-    logflag = False
+    logflag = True
 
     # Create model
     model = create_glu_ffn_model(hidden_dim, ffn_dim, layer_idx)

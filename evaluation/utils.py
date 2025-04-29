@@ -85,20 +85,32 @@ class Dataflow_parser():
                 dest_coords = dataproc.id_to_coords(dest_id)
                 source_sf = self.model.get_subfunctions_by_coords(**source_coords)
                 dest_sf = self.model.get_subfunctions_by_coords(**dest_coords)
+                package = transfer.get('size_h')*transfer.get('size_v')
                 # Get initial and target modules
                 initial_module = self.mapping.get(source_sf[0])
                 target_module = self.mapping.get(dest_sf[0])
                 # Update the dataflow
                 if initial_module and target_module:
                     if flag: print('find path for: ',source_id,' to ',dest_id)
-                    self.update_dataflow(initial_module, target_module, 1,flag)
+                    self.update_dataflow(initial_module, target_module, package,flag)
         if flag : print('parsing finished!')
                 
 
-    def update_dataflow(self, module_init: Module, module_target: Module, count: int, flag: bool = False):
+    def update_dataflow(self, module_init: Module, module_target: Module, package: int, flag: bool = False):
         """Update the dataflow information"""
         # Find hardware pathes connecting the two modules
         hardware_pathes = self.find_hardware_pathes(module_init, module_target,flag)
+        path = hardware_pathes[0]
+        # Update the dataflow for each module in the path
+        for module_index in range(len(path)-1):
+            if flag : print('updating dataflow from: ',path[module_index].coords,'to:',path[module_index+1].coords,' with packge size:',package)
+            data_send = {
+                'data_accumulated':                package
+            }
+            # Because in module1.send and module2.receive, they bind the same dataflow object,only one direction need to be updated and they work for both
+            # Update the dataflow
+            path[module_index].add_send_package(path[module_index+1], Dataflow(**data_send))
+            
 
     def find_hardware_pathes(self, module_init: Module, module_target: Module, flag: bool = False) -> List[Tuple[Module]]:
         """Find hardware pathes connecting the two modules"""
@@ -107,5 +119,6 @@ class Dataflow_parser():
         if flag : print('path found:')
         if flag : print(" -> ".join(f"{m.coords}" for m in hardware_pathes[0]))
         if flag : print('=====================')
+        return        hardware_pathes
         # Implement the logic to find hardware pathes
     

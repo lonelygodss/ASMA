@@ -95,6 +95,17 @@ class Module():
         """Get the receive modules and their dataflow"""
         return self.receive
     
+    def add_receive_package(self,other:'Module',dataflow:Dataflow):
+        """Add a receive package to the module"""
+        if other in self.receive:
+            data_accu = self.receive[other].dataflow.get('data_accumulated')
+            dataflow.dataflow['data_accumulated']+= data_accu
+            self.receive[other].update(**dataflow.dataflow)
+            self.visit_count += 1
+        else:
+            raise KeyError(f"Module {other} not found in receive modules.")
+
+    
     def update_receive(self, other: 'Module', dataflow: Dataflow):
         """Update the dataflow for an receive module"""
         if other in self.receive:
@@ -110,6 +121,16 @@ class Module():
     def get_send(self) -> Dict:
         """Get the send modules and their dataflow"""
         return self.send
+    
+    def add_send_package(self,other:'Module',dataflow:Dataflow):
+        """Add a send package to the module"""
+        if other in self.send:
+            data_accu = self.send[other].dataflow.get('data_accumulated')
+            dataflow.dataflow['data_accumulated']+= data_accu
+            self.send[other].update(**dataflow.dataflow)
+            self.visit_count += 1
+        else:
+            raise KeyError(f"Module {other} not found in send modules.")     
     
     def update_send(self, other: 'Module', dataflow: Dataflow):
         """Update the dataflow for a send module"""
