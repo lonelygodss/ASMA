@@ -139,6 +139,7 @@ class Module():
         else:
             raise KeyError(f"Module {other} not found in send modules.")
         
+        
 class Hardware():
     """Class for hardware description"""
     def __init__(self):
