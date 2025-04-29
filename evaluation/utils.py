@@ -156,7 +156,7 @@ class Dataflow_parser():
                     module_j = self.hardware.modules[j]
                     if module_j in module_i.get_send():
                         data_accum = module_i.send[module_j].dataflow['data_accumulated']
-                        heat_map[i][j] = data_accum
+                        heat_map[i][j] = data_accum/1024
                         if flag: print(f"Heat map [{i}][{j}]: {data_accum}")
         if flag: print('dataflow heat map generated!')
         return heat_map        

@@ -18,7 +18,7 @@ def main():
     array_v = 1024      # Vertical size of CIM array
     
     # version control
-    filename = "paralleld3/"
+    filename = "baseline/"
 
     # file separation from git
     filedir = "compiled_model/"+filename
@@ -33,7 +33,7 @@ def main():
     # print("\n" + "="*80 + "\n")
     
     # Compile model
-    compiler = ParallelCompiler(array_h, array_v)
+    compiler = BaselineCompiler(array_h, array_v)
     compiled_model = compiler.divide_model(model)
     
     print("Compiled Model:")
