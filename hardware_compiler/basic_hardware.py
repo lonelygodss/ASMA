@@ -16,19 +16,19 @@ class BasicHardwareCreator(HardwareCreator):
         self.n_SubTile = self.hierarchy[HierarchyType.SUBTILE.value]
         self.n_PE = self.hierarchy[HierarchyType.PE.value]
         self.bandwidth = {
-            'Accelerator to Bank': 50000,
-            'Bank to Tile': 50000,
-            'Tile to Subtile': 40000,
-            'Subtile to Subtile': 30000,
-            'Subtile to PE': 20000,
-            'PE to PE': 10000,
+            'Accelerator to Bank': 50/4,
+            'Bank to Tile': 100/4,
+            'Tile to Subtile': self.n_SubTile*500/4,
+            'Subtile to Subtile': 500/4,
+            'Subtile to PE': 500/4,
+            'PE to PE': 500/4,
         }
         self.latency = {
-            FunctionType.MVM.value: 0.5,
-            FunctionType.ACTIVATION.value: 1.1,
-            FunctionType.GLU.value: 0.7,
-            FunctionType.DATAFOWARD.value: 0.03,
-            FunctionType.ADD.value: 0.6,
+            FunctionType.MVM.value: 10,
+            FunctionType.ACTIVATION.value: 1,
+            FunctionType.GLU.value: 1,
+            FunctionType.DATAFOWARD.value: 5,
+            FunctionType.ADD.value: 1,
         }
 
         if self.logflag: 

@@ -9,16 +9,19 @@ import model_compiler.metadata_proess as dataproc
 import ast
 
 class SimpleTimedSimulation(Dataflow_parser):
-    def __init__(self,model: CompiledModel, hardware: Hardware, mapping: dict, dataflow_path: list, connection_info: dict, timelimit:float):
+    def __init__(self,model: CompiledModel, hardware: Hardware, mapping: dict,reverse_mapping:dict, dataflow_path: list, connection_info: dict, timelimit:float,flag:bool = False):
         super().__init__(model, hardware, mapping, dataflow_path)
         self.execution_time = 0
         self.transfer_time = 0
+        self.reverse_mapping = reverse_mapping
         self.available_tensors = {}
         self.all_tensors = []
         self.input_tensor = ''
         self.output_tensor = ''
         self.connection_info = connection_info
         self.timelimit = timelimit
+        self.flag = flag
+        self.concat_time = 0
     def run(self):
         """Run the simulation and calculate execution time"""
         # Sort subfunctions
@@ -29,26 +32,33 @@ class SimpleTimedSimulation(Dataflow_parser):
         self.initialize()
         while not self.is_finished(self.timelimit):
             # Execute phase
+            self.concat_time = 0
             worst_excecute_time = 0
             for subfunction in self.model.subfunctions:
                 # Check if the subfunction is ready to execute
                 if self.is_calculating(subfunction):
                     # excecute all active subfunctions
-                    worst_excecute_time = self.execute_one_step(subfunction)
+                    excecute_time = self.execute_one_step(subfunction)
+                    if excecute_time > worst_excecute_time:
+                        worst_excecute_time = excecute_time
             # Update execution time
             self.execution_time += worst_excecute_time
-
+            if self.flag: print('execution time:', worst_excecute_time)
             # Data Transfer phase
             worst_transfer_time = 0
             for subfunction in self.model.subfunctions:
                 # Check if the subfunction is ready to transfer
                 if subfunction.is_ready:
                     # Transfer data
-                    worst_transfer_time = self.transfer_one_step(subfunction)
+                    transfer_time = self.transfer_one_step(subfunction)
+                    if transfer_time > worst_transfer_time:
+                        worst_transfer_time = transfer_time
             # Update transfer time
             self.transfer_time += worst_transfer_time
-            print('timestep:', self.execution_time)
-        print('Simulation finished at time:', self.execution_time)
+            self.transfer_time += self.concat_time
+            if self.flag: print('transfer time:', worst_transfer_time+self.concat_time)
+            if self.flag: print('timestep:', self.execution_time+self.transfer_time)
+        print('Simulation finished at time:', self.execution_time+self.transfer_time)
 
 
 
@@ -58,7 +68,7 @@ class SimpleTimedSimulation(Dataflow_parser):
     def execute_one_step(self, subfunction: SubFunction)->float:
         """Execute one step of the simulation"""
         # Get the module for the subfunction
-        module = self.mapping.mapping[subfunction]
+        module = self.mapping[subfunction]
         time = module.latency
         # Set subfunction ready for transfer phase
         subfunction.is_ready = True
@@ -69,13 +79,13 @@ class SimpleTimedSimulation(Dataflow_parser):
             self.available_tensors[tensor_str]='will be available'
         # Silence calculated subfuntion
         subfunction.has_calculated = True
-        print('excecute subfunction:', subfunction.op_type.value)
+        if self.flag: print('excecute subfunction:', subfunction.op_type.value)
         return time
 
     def transfer_one_step(self, subfunction: SubFunction)->float:
         """Transfer one step of the simulation"""
         # Get the module for the subfunction
-        init_module = self.mapping.mapping[subfunction]
+        init_module = self.mapping[subfunction]
         output_tensors = subfunction.output_tensors
         time_cost = 0
         targets = {}
@@ -98,7 +108,7 @@ class SimpleTimedSimulation(Dataflow_parser):
                     if tensor.tensor_id.coords == input_tensor.tensor_id.coords:
                         data_size = input_tensor.size_params['size_h'] * input_tensor.size_params['size_v']
                         break
-                target = self.mapping.mapping[target_sf]
+                target = self.mapping[target_sf]
                 targets[target] = data_size
             self.available_tensors[self.coords_to_str(**tensor.tensor_id.coords)] = 'available'
         for target in targets.keys():
@@ -113,7 +123,9 @@ class SimpleTimedSimulation(Dataflow_parser):
             for module_index in range(len(path)-1):
                 module1 = path[module_index]
                 module2 = path[module_index+1]
-                time_cost+=module1.perform_transfer(module2, Dataflow(**data_flow))
+                if self.reverse_mapping[target].op_type == OperationType.CONCAT:
+                    self.concat_time += module1.perform_transfer(module2, Dataflow(**data_flow))
+                else: time_cost+=module1.perform_transfer(module2, Dataflow(**data_flow))
         # Reset subfunction state to indicate finished
         subfunction.is_ready = False
         return time_cost

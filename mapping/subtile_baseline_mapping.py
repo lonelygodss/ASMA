@@ -34,6 +34,7 @@ class BaselineMapping(Map_Compiledmodel_to_Hardware):
             if occupy:
                 if module.available_map[occupy] and module.hierarchy_type == HierarchyType.PE.value:
                     self.mapping[subfunction] = module
+                    self.reverse_mapping[module] = subfunction
                     module.available_map[occupy] = False
                     self.subtile_entry = module.coords['SUBTILE']
                     self.tile_entry = module.coords['TILE']
@@ -41,10 +42,12 @@ class BaselineMapping(Map_Compiledmodel_to_Hardware):
                 elif module.hierarchy_type == HierarchyType.SUBTILE.value:
                     if module.coords['SUBTILE'] == self.subtile_entry and module.coords['TILE'] == self.tile_entry:
                         self.mapping[subfunction] = module
+                        self.reverse_mapping[module] = subfunction
                         return module
                 elif module.hierarchy_type == HierarchyType.TILE.value:
                     if module.coords['TILE'] == self.tile_entry:
                         self.mapping[subfunction] = module
+                        self.reverse_mapping[module] = subfunction
                         return module
         return None
     

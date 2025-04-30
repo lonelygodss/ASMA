@@ -12,6 +12,7 @@ class Map_Compiledmodel_to_Hardware:
         self.compiled_model = compiled_model
         self.hardware = hardware
         self.mapping = {}  # Mapping from compiled model to hardware
+        self.reverse_mapping = {}  # Reverse mapping from hardware to compiled model
 
     def map(self):
         """Map the compiled model to hardware"""

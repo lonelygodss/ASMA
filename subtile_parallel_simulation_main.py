@@ -6,12 +6,10 @@ from model_compiler.scatter_compiler import ScatterCompiler
 import model_compiler.metadata_proess as dataproc
 from hardware_compiler.utils import *
 from hardware_compiler.basic_hardware import *
-from mapping.subtile_baseline_mapping import BaselineMapping
-from evaluation.utils import Dataflow_parser
+from mapping.subtile_parallel_mapping import TrivialMapping
 from timing.utils import SimpleTimedSimulation
 
-
-# This main compile with BaselineCompiler, create basic_hardware, and map with baseline mapping
+# This main compile with ParrallelCompiler, create basic_hardware, and map with trivil mapping
 
 def main():
     # Example usage
@@ -21,8 +19,8 @@ def main():
     layer_idx = 1      # First decoder layer
     
     # Define hardware constraints
-    array_h = 2048      # Horizontal size of CIM array
-    array_v = 2048      # Vertical size of CIM array
+    array_h = 1024      # Horizontal size of CIM array
+    array_v = 1024      # Vertical size of CIM array
     
     logflag = False
 
@@ -33,7 +31,7 @@ def main():
     # print("\n" + "="*80 + "\n")
     
     # Compile model
-    compiler = BaselineCompiler(array_h, array_v)
+    compiler = ParallelCompiler(array_h, array_v)
     compiled_model = compiler.divide_model(model)
     
     print("Compiled Model:")
@@ -50,7 +48,7 @@ def main():
         hierarchy = {
         HierarchyType.ACCELERATOR.value: 1,
         HierarchyType.BANK.value: 1,
-        HierarchyType.TILE.value: 3,
+        HierarchyType.TILE.value: 4,
         HierarchyType.SUBTILE.value: 16,
         HierarchyType.PE.value: 5
     }
@@ -60,18 +58,16 @@ def main():
     
     print("Hardware creation and visualization complete!")
     
-    mapping = BaselineMapping(compiled_model, hardware)
+    mapping = TrivialMapping(compiled_model, hardware)
     mapping.map()
     print("Mapping complete!")
 
     connection_info = dataproc.parse_compute_graph(compiled_model)
     print("Compute graph parsing complete!")
 
-    simulator = SimpleTimedSimulation(compiled_model, hardware, mapping,connection_info['data_flow_paths'],connection_info,100)
-    simulator.run()
+    simulator = SimpleTimedSimulation(compiled_model, hardware, mapping.mapping,mapping.reverse_mapping, connection_info['data_flow_paths'],connection_info,100000,True)
+    simulator.run() 
     print("Simulation complete!")
-
-    
 
 
 

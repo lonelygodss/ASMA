@@ -15,16 +15,17 @@ class BaselineHardwareCreator(HardwareCreator):
         self.n_Tile = self.hierarchy[HierarchyType.TILE.value]
         self.n_PE = self.hierarchy[HierarchyType.PE.value]
         self.bandwidth = {
-            'Accelerator to Bank': 5,
-            'Bank to Tile': 5,
-            'Tile to PE': 2,
+            'Accelerator to Bank': 50/4,
+            'Bank to Tile': 100/4,
+            'Tile to PE': 500/4,
         }
+
         self.latency = {
-            FunctionType.MVM.value: 0.5,
-            FunctionType.ACTIVATION.value: 1.1,
-            FunctionType.GLU.value: 0.7,
-            FunctionType.DATAFOWARD.value: 0.03,
-            FunctionType.ADD.value: 0.6,
+            FunctionType.MVM.value: 10,
+            FunctionType.ACTIVATION.value: 1,
+            FunctionType.GLU.value: 1,
+            FunctionType.DATAFOWARD.value: 5,
+            FunctionType.ADD.value: 1,
         }
 
         if self.logflag: 
@@ -100,7 +101,7 @@ class BaselineHardwareCreator(HardwareCreator):
                     module = Module(
                         HierarchyType.PE.value,
                         FunctionType.ADD.value,
-                        self.latency[FunctionType.ADD.value]
+                        self.latency[FunctionType.ADD.value],
                         **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, HierarchyType.TILE.value: i_Tile, HierarchyType.PE.value: self.n_PE+2}
                     )
                     hardware.add_module(module)

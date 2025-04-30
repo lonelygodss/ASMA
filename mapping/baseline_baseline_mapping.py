@@ -18,10 +18,10 @@ class BaselineMapping(Map_Compiledmodel_to_Hardware):
             # For each subfunction, find a suitable hardware module
             # and create a mapping entry
             hardware_module = self.map_available_module(subfunction)
-            if hardware_module:
-                print('successfully mapped subfunction:', subfunction.coords, 'to hardware module:', hardware_module.coords, ' current tile:', self.tile_entry)
-            else:
-                print('failed to map subfunction:', subfunction.coords, 'function type',subfunction.op_type.value)
+            # if hardware_module:
+            #     print('successfully mapped subfunction:', subfunction.coords, 'to hardware module:', hardware_module.coords, ' current tile:', self.tile_entry)
+            # else:
+            #     print('failed to map subfunction:', subfunction.coords, 'function type',subfunction.op_type.value)
             
     def map_available_module(self, subfunction:SubFunction)-> Optional[Module]:
         """Find an available hardware module for the given subfunction"""
@@ -33,15 +33,18 @@ class BaselineMapping(Map_Compiledmodel_to_Hardware):
             if occupy:
                 if module.available_map[occupy] and module.function_type == FunctionType.MVM.value:
                     self.mapping[subfunction] = module
+                    self.reverse_mapping[module] = subfunction
                     module.available_map[occupy] = False
                     self.tile_entry = module.coords['TILE']
                     return module
                 # use tile_entry to force other subfunction follow mvm tile wise
                 elif module.hierarchy_type == HierarchyType.ACCELERATOR.value or module.hierarchy_type == HierarchyType.BANK.value:
                     self.mapping[subfunction] = module
+                    self.reverse_mapping[module] = subfunction
                     return module
                 elif module.function_type != OperationType.MVM.value and module.coords['TILE'] == self.tile_entry:
                     self.mapping[subfunction] = module
+                    self.reverse_mapping[module] = subfunction
                     return module
         return None
     

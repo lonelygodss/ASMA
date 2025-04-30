@@ -87,6 +87,7 @@ class Module():
         self.visit_count = 0
         self.available_map = {}
         self.is_activated = False
+        self.commu_latency = 10
 
     def regist_receive(self, other: 'Module', dataflow: Dataflow):
         """Add an receive module and its dataflow"""
@@ -147,6 +148,7 @@ class Module():
             bandwidth = self.send[other].dataflow.get('bandwidth')
             data = dataflow.get('data_transfer')
             time = data / bandwidth
+            time += self.commu_latency
             return time
         else:
             raise KeyError(f"Module {other} not found in send modules.")
