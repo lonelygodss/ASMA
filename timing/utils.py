@@ -47,6 +47,7 @@ class SimpleTimedSimulation(Dataflow_parser):
                     worst_transfer_time = self.transfer_one_step(subfunction)
             # Update transfer time
             self.transfer_time += worst_transfer_time
+            print('timestep:', self.execution_time)
         print('Simulation finished at time:', self.execution_time)
 
 
@@ -68,6 +69,7 @@ class SimpleTimedSimulation(Dataflow_parser):
             self.available_tensors[tensor_str]='will be available'
         # Silence calculated subfuntion
         subfunction.has_calculated = True
+        print('excecute subfunction:', subfunction.op_type.value)
         return time
 
     def transfer_one_step(self, subfunction: SubFunction)->float:
@@ -100,7 +102,7 @@ class SimpleTimedSimulation(Dataflow_parser):
                 targets[target] = data_size
             self.available_tensors[self.coords_to_str(**tensor.tensor_id.coords)] = 'available'
         for target in targets.keys():
-            paths = self.find_hardware_pathes(init_module, target,True)
+            paths = self.find_hardware_pathes(init_module, target,False)
             if not paths:
                 print('error')
             path = paths[0]
