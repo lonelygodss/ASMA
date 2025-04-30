@@ -22,6 +22,7 @@ class SimpleTimedSimulation(Dataflow_parser):
         self.timelimit = timelimit
         self.flag = flag
         self.concat_time = 0
+        self.follow_concat = hardware.modules[0]
     def run(self):
         """Run the simulation and calculate execution time"""
         # Sort subfunctions
@@ -124,8 +125,15 @@ class SimpleTimedSimulation(Dataflow_parser):
                 module1 = path[module_index]
                 module2 = path[module_index+1]
                 if self.reverse_mapping[target].op_type == OperationType.CONCAT:
+                    if target != self.follow_concat:
+                        self.concat_time = 0
                     self.concat_time += module1.perform_transfer(module2, Dataflow(**data_flow))
-                else: time_cost+=module1.perform_transfer(module2, Dataflow(**data_flow))
+                    self.follow_concat = target
+                else: 
+                    time=module1.perform_transfer(module2, Dataflow(**data_flow))
+                    #print('transfer from:',module1.coords,'to:',module2.coords,'with data size:',data_size,'in time:',time)
+                    time_cost += time
+
         # Reset subfunction state to indicate finished
         subfunction.is_ready = False
         return time_cost

@@ -20,8 +20,8 @@ def main():
     layer_idx = 1      # First decoder layer
     
     # Define hardware constraints
-    array_h = 2048      # Horizontal size of CIM array
-    array_v = 2048      # Vertical size of CIM array
+    array_h = 1024      # Horizontal size of CIM array
+    array_v = 1024      # Vertical size of CIM array
     
         # version control
     filename = "baseline/"
@@ -43,21 +43,12 @@ def main():
     
     print("Compiled Model:")
     print(f"Total subfunctions: {len(compiled_model.subfunctions)}")
-    if False:
-        # Visualize the compiled model with shorter labels
-        dataproc.visualize_compiled_model(compiled_model, filedir+ "ffn_compiled_model")
-    # Print some statistics
-    op_counts = {}
-    for subfunc in compiled_model.subfunctions:
-        op_type = subfunc.op_type.value
-        if op_type not in op_counts:
-            op_counts[op_type] = 0
-        op_counts[op_type] += 1
 
-        hierarchy = {
+
+    hierarchy = {
         HierarchyType.ACCELERATOR.value: 1,
-        HierarchyType.BANK.value: 1,
-        HierarchyType.TILE.value: 9,
+        HierarchyType.BANK.value: 5,
+        HierarchyType.TILE.value: 16,
         HierarchyType.PE.value: 16
     }
     creator = BaselineHardwareCreator(array_h, array_v, **hierarchy)

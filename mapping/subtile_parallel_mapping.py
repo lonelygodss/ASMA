@@ -19,10 +19,10 @@ class TrivialMapping(Map_Compiledmodel_to_Hardware):
             # For each subfunction, find a suitable hardware module
             # and create a mapping entry
             hardware_module = self.map_available_module(subfunction)
-            # if hardware_module:
+            if not hardware_module:
             #     print('successfully mapped subfunction:', subfunction.coords, 'to hardware module:', hardware_module.coords)
             # else:
-            #     print('failed to map subfunction:', subfunction.coords, 'function type',subfunction.op_type.value)
+                print('failed to map subfunction:', subfunction.coords, 'function type',subfunction.op_type.value)
             
     def map_available_module(self, subfunction:SubFunction)-> Optional[Module]:
         """Find an available hardware module for the given subfunction"""

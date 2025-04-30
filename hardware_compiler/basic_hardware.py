@@ -21,7 +21,7 @@ class BasicHardwareCreator(HardwareCreator):
             'Tile to Subtile': self.n_SubTile*500/4,
             'Subtile to Subtile': 500/4,
             'Subtile to PE': 500/4,
-            'PE to PE': 500/4,
+            'PE to PE': 1000/4,
         }
         self.latency = {
             FunctionType.MVM.value: self.array_v/102.4,
