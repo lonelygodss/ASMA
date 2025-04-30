@@ -24,11 +24,11 @@ class BasicHardwareCreator(HardwareCreator):
             'PE to PE': 500/4,
         }
         self.latency = {
-            FunctionType.MVM.value: 10,
-            FunctionType.ACTIVATION.value: 1,
-            FunctionType.GLU.value: 1,
+            FunctionType.MVM.value: self.array_v/102.4,
+            FunctionType.ACTIVATION.value: self.array_h/409.6,
+            FunctionType.GLU.value: self.array_h/409.6,
             FunctionType.DATAFOWARD.value: 5,
-            FunctionType.ADD.value: 1,
+            FunctionType.ADD.value: self.array_h/409.6,
         }
 
         if self.logflag: 
