@@ -75,7 +75,7 @@ class Dataflow():
 
 class Module():
     """Base class for all modules"""
-    def __init__(self, hierarchy_type: HierarchyType, function_type: FunctionType, **coords):
+    def __init__(self, hierarchy_type: HierarchyType, function_type: FunctionType, latency: float, **coords):
         self.coords = coords
         self.hierarchy_type = hierarchy_type
         self.function_type = function_type
@@ -83,9 +83,10 @@ class Module():
         self.send = {}
         self.energy = 0
         self.area = 0
-        self.latency = 0
+        self.latency = latency
         self.visit_count = 0
         self.available_map = {}
+        self.is_activated = False
 
     def regist_receive(self, other: 'Module', dataflow: Dataflow):
         """Add an receive module and its dataflow"""
@@ -136,6 +137,17 @@ class Module():
         """Update the dataflow for a send module"""
         if other in self.send:
             self.send[other].update(**dataflow.dataflow)
+        else:
+            raise KeyError(f"Module {other} not found in send modules.")
+        
+    def perform_transfer(self, other: 'Module', dataflow: Dataflow)->float:
+        """Perform data transfer to another module"""
+        if other in self.send:
+            # Perform transfer
+            bandwidth = self.send[other].dataflow.get('bandwidth')
+            data = dataflow.get('data_transfer')
+            time = data / bandwidth
+            return time
         else:
             raise KeyError(f"Module {other} not found in send modules.")
         

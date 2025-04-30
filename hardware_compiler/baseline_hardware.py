@@ -19,6 +19,13 @@ class BaselineHardwareCreator(HardwareCreator):
             'Bank to Tile': 5,
             'Tile to PE': 2,
         }
+        self.latency = {
+            FunctionType.MVM.value: 0.5,
+            FunctionType.ACTIVATION.value: 1.1,
+            FunctionType.GLU.value: 0.7,
+            FunctionType.DATAFOWARD.value: 0.03,
+            FunctionType.ADD.value: 0.6,
+        }
 
         if self.logflag: 
             print('=============basic hardware info====================')
@@ -44,6 +51,7 @@ class BaselineHardwareCreator(HardwareCreator):
             module = Module(
                 HierarchyType.ACCELERATOR.value, 
                 FunctionType.DATAFOWARD.value,
+                self.latency[FunctionType.DATAFOWARD.value],
                 **{HierarchyType.ACCELERATOR.value: i_Accelerator}
             )
             hardware.add_module(module)
@@ -52,6 +60,7 @@ class BaselineHardwareCreator(HardwareCreator):
                 module = Module(
                     HierarchyType.BANK.value, 
                     FunctionType.DATAFOWARD.value,
+                    self.latency[FunctionType.DATAFOWARD.value],
                     **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank}
                 )
                 hardware.add_module(module)
@@ -60,6 +69,7 @@ class BaselineHardwareCreator(HardwareCreator):
                     module = Module(
                         HierarchyType.TILE.value, 
                         FunctionType.DATAFOWARD.value,
+                        self.latency[FunctionType.DATAFOWARD.value],
                         **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, HierarchyType.TILE.value: i_Tile}
                     )
                     hardware.add_module(module)
@@ -68,6 +78,7 @@ class BaselineHardwareCreator(HardwareCreator):
                         module = Module(
                             HierarchyType.PE.value, 
                             FunctionType.MVM.value,
+                            self.latency[FunctionType.MVM.value],
                             **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, HierarchyType.TILE.value: i_Tile, HierarchyType.PE.value: i_PE}
                         )
                         hardware.add_module(module)
@@ -75,18 +86,21 @@ class BaselineHardwareCreator(HardwareCreator):
                     module = Module(
                         HierarchyType.PE.value,
                         FunctionType.ACTIVATION.value,
+                        self.latency[FunctionType.ACTIVATION.value],
                         **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, HierarchyType.TILE.value: i_Tile, HierarchyType.PE.value: self.n_PE}
                     )
                     hardware.add_module(module)
                     module = Module(
                         HierarchyType.PE.value,
                         FunctionType.GLU.value,
+                        self.latency[FunctionType.GLU.value],
                         **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, HierarchyType.TILE.value: i_Tile, HierarchyType.PE.value: self.n_PE+1}
                     )
                     hardware.add_module(module)
                     module = Module(
                         HierarchyType.PE.value,
                         FunctionType.ADD.value,
+                        self.latency[FunctionType.ADD.value]
                         **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, HierarchyType.TILE.value: i_Tile, HierarchyType.PE.value: self.n_PE+2}
                     )
                     hardware.add_module(module)

@@ -97,6 +97,8 @@ class SubFunction:
         self.shape = None     # For operations with shape requirements
         self.parent_function = None  # Reference to the parent Function
         self.metadata = {}    # Additional metadata for the subfunction
+        self.is_ready = False
+        self.has_calculated = False
         
     def set_parent(self, parent: Function):
         """Set the parent function this subfunction was derived from"""
