@@ -29,7 +29,7 @@ def main():
     # print("\n" + "="*80 + "\n")
     
     # Compile model
-    compiler = ParallelCompiler(array_h, array_v)
+    compiler = BaselineCompiler(array_h, array_v)
     compiled_model = compiler.divide_model(model)
     
     print("Compiled Model:")

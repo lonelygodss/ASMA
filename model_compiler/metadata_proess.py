@@ -514,19 +514,29 @@ def get_coord_tuple(tensor_id: TensorId) -> Tuple:
     return tuple((k, tensor_id.coords.get(k, None)) for k in sorted(tensor_id.coords.keys()))
 
 
-def parse_compute_graph(compiled_model: CompiledModel) -> Dict:
+def parse_compute_graph(compiled_model: CompiledModel, flag: bool = False, extract_paths: bool = True) -> Dict:
     """
     Parse the compiled model to extract connection information for hardware mapping
     
     Args:
         compiled_model: The compiled model with subfunctions
+        flag: Whether to print progress logs (default: False)
+        extract_paths: Whether to extract data flow paths (default: True)
+                      Set to False to skip the potentially time-consuming path analysis
         
     Returns:
         Dictionary containing connection information and data flow details
     """
+    if flag:
+        print("[INFO] Starting to parse compute graph...")
+        
     # Build dependency graph if not already built
     if not compiled_model.dependency_graph:
+        if flag:
+            print("[INFO] Building dependency graph...")
         compiled_model.build_dependency_graph()
+        if flag:
+            print("[INFO] Dependency graph built successfully.")
     
     # Create a dictionary to store connection information
     connection_info = {
@@ -542,8 +552,14 @@ def parse_compute_graph(compiled_model: CompiledModel) -> Dict:
         'spatial_mapping': {}      # Spatial organization (i,j coordinates)
     }
     
+    if flag:
+        print(f"[INFO] Processing {len(compiled_model.subfunctions)} subfunctions...")
+        
     # Extract nodes (subfunctions)
     for idx, subfunc in enumerate(compiled_model.subfunctions):
+        if flag and idx % 50 == 0:
+            print(f"[INFO] Processing subfunction {idx}/{len(compiled_model.subfunctions)}...")
+            
         # Create a unique ID for this subfunction
         coords_str = "_".join(f"{k}_{v}" for k, v in sorted(subfunc.coords.items()))
         subfunction_id = f"sf_{subfunc.op_type.value}_{coords_str}"
@@ -626,18 +642,40 @@ def parse_compute_graph(compiled_model: CompiledModel) -> Dict:
             connection_info['spatial_mapping'][spatial_key] = []
         connection_info['spatial_mapping'][spatial_key].append(subfunction_id)
     
-    # Extract data flow paths
-    connection_info['data_flow_paths'] = extract_data_flow_paths(connection_info)
+    if flag:
+        print(f"[INFO] All subfunctions processed.")
+        print(f"[INFO] Total nodes: {len(connection_info['nodes'])}")
+        print(f"[INFO] Total tensors: {len(connection_info['tensors'])}")
+        print(f"[INFO] Operation types: {list(connection_info['operation_groups'].keys())}")
+    
+    # Extract data flow paths only if requested
+    if extract_paths:
+        if flag:
+            print(f"[INFO] Starting to extract data flow paths...")
+        
+        connection_info['data_flow_paths'] = extract_data_flow_paths(connection_info, flag)
+        
+        if flag:
+            print(f"[INFO] Data flow paths extracted: {len(connection_info['data_flow_paths'])} paths")
+    else:
+        if flag:
+            print("[INFO] Skipping data flow path extraction as requested.")
+        # Just add an empty list for consistency
+        connection_info['data_flow_paths'] = []
+    
+    if flag:
+        print("[INFO] Parse compute graph completed successfully.")
     
     return connection_info
 
 
-def extract_data_flow_paths(connection_info: Dict) -> List[Dict]:
+def extract_data_flow_paths(connection_info: Dict, flag: bool = False) -> List[Dict]:
     """
     Extract data flow paths from connection information
     
     Args:
         connection_info: Connection information dictionary
+        flag: Whether to print progress logs (default: False)
         
     Returns:
         List of data flow paths
@@ -645,6 +683,9 @@ def extract_data_flow_paths(connection_info: Dict) -> List[Dict]:
     paths = []
     
     # Find all source nodes (nodes with no inputs or only inputs from outside the model)
+    if flag:
+        print("[INFO] Identifying source nodes...")
+        
     source_nodes = []
     for node in connection_info['nodes']:
         node_id = node['id']
@@ -659,15 +700,40 @@ def extract_data_flow_paths(connection_info: Dict) -> List[Dict]:
         if not has_internal_inputs and connection_info['subfunction_inputs'].get(node_id, []):
             source_nodes.append(node_id)
     
+    if flag:
+        print(f"[INFO] Found {len(source_nodes)} source nodes.")
+    
     # For each source node, trace all possible paths
-    for source_node in source_nodes:
-        trace_paths(source_node, [], connection_info, paths)
+    path_count = 0
+    for i, source_node in enumerate(source_nodes):
+        if flag:
+            print(f"[INFO] Tracing paths from source node {i+1}/{len(source_nodes)}: {source_node}")
+        
+        previous_count = len(paths)
+        trace_paths(source_node, [], connection_info, paths, flag)
+        
+        if flag:
+            new_paths = len(paths) - previous_count
+            path_count += new_paths
+            print(f"[INFO] Found {new_paths} paths from source node {source_node}")
+    
+    if flag:
+        print(f"[INFO] Total paths extracted: {len(paths)}")
+        
+        # Calculate some statistics about the paths
+        if paths:
+            lengths = [path['length'] for path in paths]
+            avg_length = sum(lengths) / len(lengths)
+            max_length = max(lengths)
+            min_length = min(lengths)
+            print(f"[INFO] Path length statistics - Min: {min_length}, Avg: {avg_length:.2f}, Max: {max_length}")
     
     return paths
 
 
 def trace_paths(current_node: str, current_path: List[str], 
-                connection_info: Dict, all_paths: List[Dict]):
+                connection_info: Dict, all_paths: List[Dict],
+                flag: bool = False):
     """
     Recursively trace all paths from a given node
     
@@ -676,9 +742,13 @@ def trace_paths(current_node: str, current_path: List[str],
         current_path: Path traversed so far
         connection_info: Connection information dictionary
         all_paths: List to store all found paths
+        flag: Whether to print progress logs (default: False)
     """
     # Add current node to path
     path = current_path + [current_node]
+    
+    if flag and len(path) % 10 == 0:
+        print(f"[INFO] Tracing path depth: {len(path)}, current node: {current_node}")
     
     # Find all output tensors from this node
     output_tensors = []
@@ -735,10 +805,16 @@ def trace_paths(current_node: str, current_path: List[str],
                 'transfers': tensor_transfers,
                 'length': len(path)
             })
+            
+            if flag and len(all_paths) % 100 == 0:
+                print(f"[INFO] Found {len(all_paths)} paths so far")
     else:
         # Continue tracing paths
+        if flag and len(next_nodes) > 5:
+            print(f"[INFO] Branching to {len(next_nodes)} next nodes from node {current_node}")
+            
         for next_node in next_nodes:
-            trace_paths(next_node, path, connection_info, all_paths)
+            trace_paths(next_node, path, connection_info, all_paths, flag)
 
 
 def save_compute_graph(connection_info: Dict, filename: str):
