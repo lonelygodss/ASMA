@@ -8,6 +8,8 @@ from hardware_compiler.utils import *
 from hardware_compiler.basic_hardware import *
 from mapping.subtile_parallel_mapping import TrivialMapping
 from timing.utils import SimpleTimedSimulation
+from evaluation.utils import Dataflow_parser
+
 
 # This main compile with ParrallelCompiler, create basic_hardware, and map with trivil mapping
 
@@ -19,8 +21,8 @@ def main():
     layer_idx = 1      # First decoder layer
     
     # Define hardware constraints
-    array_h = 2048      # Horizontal size of CIM array
-    array_v = 2048      # Vertical size of CIM array
+    array_h = 512      # Horizontal size of CIM array
+    array_v = 512      # Vertical size of CIM array
     
     logflag = False
 
@@ -42,7 +44,7 @@ def main():
     hierarchy = {
         HierarchyType.ACCELERATOR.value: 1,
         HierarchyType.BANK.value: 1,
-        HierarchyType.TILE.value: 5,
+        HierarchyType.TILE.value: 3,
         HierarchyType.SUBTILE.value: 64,
         HierarchyType.PE.value: 5
     }
@@ -59,10 +61,12 @@ def main():
     connection_info = dataproc.parse_compute_graph(compiled_model)
     print("Compute graph parsing complete!")
 
-    simulator = SimpleTimedSimulation(compiled_model, hardware, mapping.mapping,mapping.reverse_mapping, connection_info['data_flow_paths'],connection_info,100000,True)
+    simulator = SimpleTimedSimulation(compiled_model, hardware, mapping.mapping,mapping.reverse_mapping, connection_info['data_flow_paths'],connection_info,100000,False)
     simulator.run() 
     print("Simulation complete!")
 
+    parser = Dataflow_parser(compiled_model, hardware, mapping.mapping, connection_info['data_flow_paths'])
+    parser.parse_dataflow(logflag)
 
 
 if __name__ == "__main__":

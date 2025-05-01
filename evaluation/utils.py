@@ -76,7 +76,7 @@ class Dataflow_parser():
         """Parse the dataflow information"""
         # Implement the parsing logic here
         heat_map_base = self.initialize_heat_map(flag)
-        if True: visualize_heat_map(heat_map_base, "Base Heat Map (Bandwidth)")
+        if True: visualize_heat_map(heat_map_base, "Base Heat Map (Bandwidth)",False, log_scale= True)
         for model_path in self.dataflow_path:
             transfers = model_path.get("transfers", [])
             for transfer in transfers:

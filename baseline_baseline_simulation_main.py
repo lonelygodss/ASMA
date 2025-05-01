@@ -7,6 +7,8 @@ import model_compiler.metadata_proess as dataproc
 from hardware_compiler.utils import *
 from hardware_compiler.baseline_hardware import *
 from mapping.baseline_baseline_mapping import BaselineMapping
+from evaluation.utils import Dataflow_parser
+
 from timing.utils import SimpleTimedSimulation
 
 
@@ -20,8 +22,8 @@ def main():
     layer_idx = 1      # First decoder layer
     
     # Define hardware constraints
-    array_h = 1024      # Horizontal size of CIM array
-    array_v = 1024      # Vertical size of CIM array
+    array_h = 512      # Horizontal size of CIM array
+    array_v = 512      # Vertical size of CIM array
     
         # version control
     filename = "baseline/"
@@ -47,7 +49,7 @@ def main():
 
     hierarchy = {
         HierarchyType.ACCELERATOR.value: 1,
-        HierarchyType.BANK.value: 5,
+        HierarchyType.BANK.value: 3,
         HierarchyType.TILE.value: 16,
         HierarchyType.PE.value: 16
     }
@@ -64,11 +66,12 @@ def main():
     connection_info = dataproc.parse_compute_graph(compiled_model)
     print("Compute graph parsing complete!")
 
-    simulator = SimpleTimedSimulation(compiled_model, hardware, mapping.mapping,mapping.reverse_mapping, connection_info['data_flow_paths'],connection_info,1000000,True)
+    simulator = SimpleTimedSimulation(compiled_model, hardware, mapping.mapping,mapping.reverse_mapping, connection_info['data_flow_paths'],connection_info,1000000,False)
     simulator.run() 
     print("Simulation complete!")
     
-
+    parser = Dataflow_parser(compiled_model, hardware, mapping.mapping, connection_info['data_flow_paths'])
+    parser.parse_dataflow(logflag)
 
 
 if __name__ == "__main__":
