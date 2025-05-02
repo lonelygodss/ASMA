@@ -76,7 +76,7 @@ class Dataflow_parser():
         """Parse the dataflow information"""
         # Implement the parsing logic here
         heat_map_base = self.initialize_heat_map(flag)
-        if True: visualize_heat_map(heat_map_base, "Base Heat Map (Bandwidth)",False, log_scale= True)
+        if True: visualize_heat_map(heat_map_base, "Base Heat Map (Bandwidth)",False,log_scale= True)
         for model_path in self.dataflow_path:
             transfers = model_path.get("transfers", [])
             for transfer in transfers:
@@ -97,7 +97,10 @@ class Dataflow_parser():
                     self.update_dataflow(initial_module, target_module, package)
         if flag : print('parsing finished!')
         heat_map_with_data = self.dataflow_heat_map(flag)
-        if True: visualize_heat_map(heat_map_with_data, "Dataflow Heat Map (Accumulated Data)", True, log_scale= True)
+        latency_map = self.latency_heat_map(flag)
+        if True: 
+            visualize_heat_map(heat_map_with_data, "Dataflow Heat Map (Accumulated Data)", False, log_scale= True)
+            visualize_heat_map(latency_map, "Latency Heat Map", True, log_scale= True)
 
     def update_dataflow(self, module_init: Module, module_target: Module, package: int, flag: bool = False):
         """Update the dataflow information"""
@@ -160,5 +163,22 @@ class Dataflow_parser():
                         data_accum = module_i.send[module_j].dataflow['data_accumulated']
                         heat_map[i][j] = data_accum/1024
                         if flag: print(f"Heat map [{i}][{j}]: {data_accum}")
+        if flag: print('dataflow heat map generated!')
+        return heat_map   
+
+    def latency_heat_map(self,flag: bool = False):
+        """generate the heat map with dataflow information"""
+        heat_map = np.zeros((len(self.hardware.modules), len(self.hardware.modules)))
+        for i in range(len(self.hardware.modules)):
+            module_i = self.hardware.modules[i]
+            if module_i.get_send():
+                for j in range(len(self.hardware.modules)):
+                    module_j = self.hardware.modules[j]
+                    if module_j in module_i.get_send():
+                        data_accum = module_i.send[module_j].dataflow['data_accumulated']
+                        bandwidth = module_i.send[module_j].dataflow['bandwidth']
+                        latency = data_accum/bandwidth
+                        heat_map[i][j] = latency
+                        if flag: print(f"Heat map [{i}][{j}]: {latency}")
         if flag: print('dataflow heat map generated!')
         return heat_map        
