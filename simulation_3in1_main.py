@@ -13,7 +13,9 @@ from mapping.subtile_baseline_mapping import BaselineMapping as BaselineMapping2
 from mapping.subtile_parallel_mapping import TrivialMapping
 
 from timing.utils import SimpleTimedSimulation
-
+import csv
+import os
+from datetime import datetime
 
 # This main compile with BaselineCompiler, create basic_hardware, and map with baseline mapping
 
@@ -28,8 +30,11 @@ def main():
     array_h = 2048      # Horizontal size of CIM array
     array_v = 2048      # Vertical size of CIM array
     
-        # version control
-
+    # Create a list to store all simulation results
+    results = []
+    # Add header row
+    results.append(["Compiler", "Array Size", "FFN Dimension", "Time", "Energy"])
+    
     logflag = False
     for n in range(4):
         array_h = 2**(n+7)
@@ -41,6 +46,7 @@ def main():
             # Create model
             model = create_glu_ffn_model(hidden_dim, ffn_dim, layer_idx)
 
+            # Baseline compiler
             compiler = BaselineCompiler(array_h, array_v)
             compiled_model = compiler.divide_model(model)
 
@@ -66,6 +72,9 @@ def main():
             time = result['time']
             energy = result['energy']
             print("Simulation complete!")
+            
+            # Store baseline results
+            results.append(["b_b", array_h, ffn_dim, time, energy])
             
     #==============================================
             model = create_glu_ffn_model(hidden_dim, ffn_dim, layer_idx)
@@ -93,6 +102,10 @@ def main():
             time = result['time']
             energy = result['energy']
             print("Simulation complete!")
+            
+            # Store BaselineMapping2 results
+            results.append(["s_b", array_h, ffn_dim, time, energy])
+            
     #==============================================
             compiler = ParallelCompiler(array_h, array_v)
             compiled_model = compiler.divide_model(model)
@@ -112,9 +125,19 @@ def main():
             time = result['time']
             energy = result['energy']
             print("Simulation complete!")
+            
+            # Store ParallelCompiler results
+            results.append(["s_p", array_h, ffn_dim, time, energy])
     
-
-
+    # Export results to CSV file
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"simulation_results_{timestamp}.csv"
+    
+    with open(filename, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerows(results)
+    
+    print(f"Results exported to {filename}")
 
 if __name__ == "__main__":
     main()
