@@ -16,19 +16,34 @@ class BasicHardwareCreator(HardwareCreator):
         self.n_SubTile = self.hierarchy[HierarchyType.SUBTILE.value]
         self.n_PE = self.hierarchy[HierarchyType.PE.value]
         self.bandwidth = {
-            'Accelerator to Bank': 50/4,
-            'Bank to Tile': 100/4,
-            'Tile to Subtile': self.n_SubTile*500/4,
-            'Subtile to Subtile': 500/4,
-            'Subtile to PE': 500/4,
-            'PE to PE': 1000/4,
+            'Accelerator to Bank': 50*2, # n [GB/s] = n*2 [int4/ns]
+            'Bank to Tile': 100*2,
+            'Tile to Subtile': self.n_SubTile*500*2,
+            'Subtile to Subtile': 500*2,
+            'Subtile to PE': 500*2,
+            'PE to PE': 1000*2,
         }
-        self.latency = {
-            FunctionType.MVM.value: self.array_v/102.4,
-            FunctionType.ACTIVATION.value: self.array_h/409.6,
-            FunctionType.GLU.value: self.array_h/409.6,
-            FunctionType.DATAFOWARD.value: 5,
-            FunctionType.ADD.value: self.array_h/409.6,
+        self.latency = { #ns
+            FunctionType.MVM.value: 40*self.array_v/512,
+            FunctionType.ACTIVATION.value: 0.5*self.array_h/512,
+            FunctionType.GLU.value:  0.5*self.array_h/512,
+            FunctionType.DATAFOWARD.value:  0.5*self.array_h/512,
+            FunctionType.ADD.value:  0.5*self.array_h/512,
+        }
+        self.energy = { #nJ
+            FunctionType.MVM.value: 5.2*pow(self.array_v/512,2),
+            FunctionType.ACTIVATION.value: 0.02*self.array_h*4/1000,
+            FunctionType.GLU.value: 0.02*self.array_h*4/1000,
+            FunctionType.DATAFOWARD.value: 0.02*self.array_h*4/1000,
+            FunctionType.ADD.value: 0.02*self.array_h*4/1000,
+        }
+        self.energy_cost = {
+            'Accelerator to Bank': 50/2, # n [pj/Byte] = n/2 [pj/int4]
+            'Bank to Tile': 10/2,
+            'Tile to Subtile': 3/2,
+            'Subtile to Subtile': 3/2,
+            'Subtile to PE': 3/2,
+            'PE to PE': 0.5/2,
         }
 
         if self.logflag: 
@@ -56,6 +71,7 @@ class BasicHardwareCreator(HardwareCreator):
                 HierarchyType.ACCELERATOR.value, 
                 FunctionType.DATAFOWARD.value,
                 self.latency[FunctionType.DATAFOWARD.value],
+                self.energy[FunctionType.DATAFOWARD.value],
                 **{HierarchyType.ACCELERATOR.value: i_Accelerator}
             )
             hardware.add_module(module)
@@ -65,6 +81,7 @@ class BasicHardwareCreator(HardwareCreator):
                     HierarchyType.BANK.value, 
                     FunctionType.DATAFOWARD.value,
                     self.latency[FunctionType.DATAFOWARD.value],
+                    self.energy[FunctionType.DATAFOWARD.value],
                     **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank}
                 )
                 hardware.add_module(module)
@@ -74,6 +91,7 @@ class BasicHardwareCreator(HardwareCreator):
                         HierarchyType.TILE.value, 
                         FunctionType.DATAFOWARD.value,
                         self.latency[FunctionType.DATAFOWARD.value],
+                        self.energy[FunctionType.DATAFOWARD.value],
                         **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, HierarchyType.TILE.value: i_Tile}
                     )
                     hardware.add_module(module)
@@ -83,6 +101,7 @@ class BasicHardwareCreator(HardwareCreator):
                             HierarchyType.SUBTILE.value, 
                             FunctionType.DATAFOWARD.value,
                             self.latency[FunctionType.DATAFOWARD.value],
+                            self.energy[FunctionType.DATAFOWARD.value],
                             **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, HierarchyType.TILE.value: i_Tile, HierarchyType.SUBTILE.value: i_SubTile}
                         )
                         hardware.add_module(module)
@@ -93,6 +112,7 @@ class BasicHardwareCreator(HardwareCreator):
                                     HierarchyType.PE.value, 
                                     FunctionType.MVM.value,
                                     self.latency[FunctionType.MVM.value],
+                                    self.energy[FunctionType.MVM.value],
                                     **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, HierarchyType.TILE.value: i_Tile, HierarchyType.SUBTILE.value: i_SubTile, HierarchyType.PE.value: i_PE}
                                 )
                                 hardware.add_module(module)
@@ -101,6 +121,7 @@ class BasicHardwareCreator(HardwareCreator):
                                     HierarchyType.PE.value, 
                                     FunctionType.ACTIVATION.value,
                                     self.latency[FunctionType.ACTIVATION.value],
+                                    self.energy[FunctionType.ACTIVATION.value],
                                     **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, HierarchyType.TILE.value: i_Tile, HierarchyType.SUBTILE.value: i_SubTile, HierarchyType.PE.value: i_PE}
                                 )
                                 hardware.add_module(module)
@@ -109,6 +130,7 @@ class BasicHardwareCreator(HardwareCreator):
                                     HierarchyType.PE.value, 
                                     FunctionType.GLU.value,
                                     self.latency[FunctionType.GLU.value],
+                                    self.energy[FunctionType.GLU.value],
                                     **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, HierarchyType.TILE.value: i_Tile, HierarchyType.SUBTILE.value: i_SubTile, HierarchyType.PE.value: i_PE}
                                 )
                                 hardware.add_module(module)
@@ -129,7 +151,7 @@ class BasicHardwareCreator(HardwareCreator):
                 )
                 for i_Tile in range(self.n_Tile):
                     # connect Tiles to Bank
-                    self.connect_with_bandwidth_bothsides(Banks[i_Bank], Tiles[i_Tile], self.bandwidth['Bank to Tile'])
+                    self.connect_with_bandwidth_bothsides(Banks[i_Bank], Tiles[i_Tile], self.bandwidth['Bank to Tile'],self.energy_cost['Bank to Tile'])
 
                     # find all subtiles
                     SubTiles = hardware.find_modules(
@@ -142,27 +164,27 @@ class BasicHardwareCreator(HardwareCreator):
                     )
 
                     for i_GLUs in range(len(GLUs)):
-                        self.connect_with_bandwidth_bothsides(GLUs[i_GLUs], GLUs[(i_GLUs+1)%len(GLUs)], self.bandwidth['Subtile to Subtile'])
+                        self.connect_with_bandwidth_bothsides(GLUs[i_GLUs], GLUs[(i_GLUs+1)%len(GLUs)], self.bandwidth['Subtile to Subtile'],self.energy_cost['Subtile to Subtile'])
 
                     for i_SubTile in range(self.n_SubTile):
                         #connect subtiles to tiles
-                        self.connect_with_bandwidth_bothsides(Tiles[i_Tile], SubTiles[i_SubTile], self.bandwidth['Tile to Subtile'])
+                        self.connect_with_bandwidth_bothsides(Tiles[i_Tile], SubTiles[i_SubTile], self.bandwidth['Tile to Subtile'],self.energy_cost['Tile to Subtile'])
                         #find all PEs
                         PEs = hardware.find_modules(
                             **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, HierarchyType.TILE.value: i_Tile, HierarchyType.SUBTILE.value: i_SubTile,'hierarchy_type': HierarchyType.PE.value}
                         )
                         
                         # connect PEs within subtile
-                        self.connect_with_bandwidth_single(SubTiles[i_SubTile], PEs[0], self.bandwidth['Subtile to PE'])
-                        self.connect_with_bandwidth_single(SubTiles[i_SubTile], PEs[1], self.bandwidth['Subtile to PE'])
-                        self.connect_with_bandwidth_single(PEs[2], SubTiles[i_SubTile], self.bandwidth['Subtile to PE'])
-                        self.connect_with_bandwidth_bothsides(PEs[4], SubTiles[i_SubTile], self.bandwidth['Subtile to PE'])
+                        self.connect_with_bandwidth_single(SubTiles[i_SubTile], PEs[0], self.bandwidth['Subtile to PE'], self.energy_cost['Subtile to PE'])
+                        self.connect_with_bandwidth_single(SubTiles[i_SubTile], PEs[1], self.bandwidth['Subtile to PE'], self.energy_cost['Subtile to PE'])
+                        self.connect_with_bandwidth_single(PEs[2], SubTiles[i_SubTile], self.bandwidth['Subtile to PE'], self.energy_cost['Subtile to PE'])
+                        self.connect_with_bandwidth_bothsides(PEs[4], SubTiles[i_SubTile], self.bandwidth['Subtile to PE'], self.energy_cost['Subtile to PE'])
                         
                         # connect PEs with each other
-                        self.connect_with_bandwidth_single(PEs[0], PEs[3], self.bandwidth['PE to PE'])
-                        self.connect_with_bandwidth_single(PEs[1], PEs[4], self.bandwidth['PE to PE'])
-                        self.connect_with_bandwidth_single(PEs[3], PEs[4], self.bandwidth['PE to PE'])
-                        self.connect_with_bandwidth_single(PEs[4], PEs[2], self.bandwidth['PE to PE'])
+                        self.connect_with_bandwidth_single(PEs[0], PEs[3], self.bandwidth['PE to PE'], self.energy_cost['PE to PE'])
+                        self.connect_with_bandwidth_single(PEs[1], PEs[4], self.bandwidth['PE to PE'], self.energy_cost['PE to PE'])
+                        self.connect_with_bandwidth_single(PEs[3], PEs[4], self.bandwidth['PE to PE'], self.energy_cost['PE to PE'])
+                        self.connect_with_bandwidth_single(PEs[4], PEs[2], self.bandwidth['PE to PE'], self.energy_cost['PE to PE'])
         
 
                             

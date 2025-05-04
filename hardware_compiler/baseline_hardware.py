@@ -15,17 +15,29 @@ class BaselineHardwareCreator(HardwareCreator):
         self.n_Tile = self.hierarchy[HierarchyType.TILE.value]
         self.n_PE = self.hierarchy[HierarchyType.PE.value]
         self.bandwidth = {
-            'Accelerator to Bank': 50/4,
-            'Bank to Tile': 100/4,
-            'Tile to PE': 500/4,
+            'Accelerator to Bank': 50*2,
+            'Bank to Tile': 100*2,
+            'Tile to PE': 500*2,
         }
 
-        self.latency = {
-            FunctionType.MVM.value: self.array_v/102.4,
-            FunctionType.ACTIVATION.value: self.array_h/409.6,
-            FunctionType.GLU.value: self.array_h/409.6,
-            FunctionType.DATAFOWARD.value: 5,
-            FunctionType.ADD.value: self.array_h/409.6,
+        self.latency = { #ns
+            FunctionType.MVM.value: 40*self.array_v/512,
+            FunctionType.ACTIVATION.value: 0.5*self.array_h/512,
+            FunctionType.GLU.value:  0.5*self.array_h/512,
+            FunctionType.DATAFOWARD.value:  0.5*self.array_h/512,
+            FunctionType.ADD.value:  0.5*self.array_h/512,
+        }
+        self.energy = { #nJ
+            FunctionType.MVM.value: 5.2*pow(self.array_v/512,2),
+            FunctionType.ACTIVATION.value: 0.02*self.array_h*4/1000,
+            FunctionType.GLU.value: 0.02*self.array_h*4/1000,
+            FunctionType.DATAFOWARD.value: 0.02*self.array_h*4/1000,
+            FunctionType.ADD.value: 0.02*self.array_h*4/1000,
+        }
+        self.energy_cost = {
+            'Accelerator to Bank': 50/2,
+            'Bank to Tile': 10/2,
+            'Tile to PE': 3/2,
         }
 
         if self.logflag: 
@@ -53,6 +65,7 @@ class BaselineHardwareCreator(HardwareCreator):
                 HierarchyType.ACCELERATOR.value, 
                 FunctionType.DATAFOWARD.value,
                 self.latency[FunctionType.DATAFOWARD.value],
+                self.energy[FunctionType.DATAFOWARD.value],
                 **{HierarchyType.ACCELERATOR.value: i_Accelerator}
             )
             hardware.add_module(module)
@@ -62,6 +75,7 @@ class BaselineHardwareCreator(HardwareCreator):
                     HierarchyType.BANK.value, 
                     FunctionType.DATAFOWARD.value,
                     self.latency[FunctionType.DATAFOWARD.value],
+                    self.energy[FunctionType.DATAFOWARD.value],
                     **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank}
                 )
                 hardware.add_module(module)
@@ -71,6 +85,7 @@ class BaselineHardwareCreator(HardwareCreator):
                         HierarchyType.TILE.value, 
                         FunctionType.DATAFOWARD.value,
                         self.latency[FunctionType.DATAFOWARD.value],
+                        self.energy[FunctionType.DATAFOWARD.value],
                         **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, HierarchyType.TILE.value: i_Tile}
                     )
                     hardware.add_module(module)
@@ -80,6 +95,7 @@ class BaselineHardwareCreator(HardwareCreator):
                             HierarchyType.PE.value, 
                             FunctionType.MVM.value,
                             self.latency[FunctionType.MVM.value],
+                            self.energy[FunctionType.MVM.value],
                             **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, HierarchyType.TILE.value: i_Tile, HierarchyType.PE.value: i_PE}
                         )
                         hardware.add_module(module)
@@ -88,6 +104,7 @@ class BaselineHardwareCreator(HardwareCreator):
                         HierarchyType.PE.value,
                         FunctionType.ACTIVATION.value,
                         self.latency[FunctionType.ACTIVATION.value],
+                        self.energy[FunctionType.ACTIVATION.value],
                         **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, HierarchyType.TILE.value: i_Tile, HierarchyType.PE.value: self.n_PE}
                     )
                     hardware.add_module(module)
@@ -95,6 +112,7 @@ class BaselineHardwareCreator(HardwareCreator):
                         HierarchyType.PE.value,
                         FunctionType.GLU.value,
                         self.latency[FunctionType.GLU.value],
+                        self.energy[FunctionType.GLU.value],
                         **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, HierarchyType.TILE.value: i_Tile, HierarchyType.PE.value: self.n_PE+1}
                     )
                     hardware.add_module(module)
@@ -102,6 +120,7 @@ class BaselineHardwareCreator(HardwareCreator):
                         HierarchyType.PE.value,
                         FunctionType.ADD.value,
                         self.latency[FunctionType.ADD.value],
+                        self.energy[FunctionType.ADD.value],
                         **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, HierarchyType.TILE.value: i_Tile, HierarchyType.PE.value: self.n_PE+2}
                     )
                     hardware.add_module(module)
@@ -118,20 +137,20 @@ class BaselineHardwareCreator(HardwareCreator):
             
             for i_Bank in range(self.n_Bank):
                 # connect Bank to Accelerator
-                self.connect_with_bandwidth_bothsides(Banks[i_Bank], Accelerator,self.bandwidth['Accelerator to Bank'])        
+                self.connect_with_bandwidth_bothsides(Banks[i_Bank], Accelerator,self.bandwidth['Accelerator to Bank'],self.energy_cost['Accelerator to Bank'])        
                 # find all tiles
                 Tiles = hardware.find_modules(
                     **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, 'hierarchy_type':HierarchyType.TILE.value}
                 )
                 for i_Tile in range(self.n_Tile):
                     # connect Tiles to Bank
-                    self.connect_with_bandwidth_bothsides(Banks[i_Bank], Tiles[i_Tile], self.bandwidth['Bank to Tile'])
+                    self.connect_with_bandwidth_bothsides(Banks[i_Bank], Tiles[i_Tile], self.bandwidth['Bank to Tile'],self.energy_cost['Bank to Tile'])
                     # connect Tiles to PE
                     PEs = hardware.find_modules(
                         **{HierarchyType.ACCELERATOR.value: i_Accelerator, HierarchyType.BANK.value: i_Bank, HierarchyType.TILE.value: i_Tile, 'hierarchy_type':HierarchyType.PE.value}
                     )
                     for i_PE in range(self.n_PE+3):
-                        self.connect_with_bandwidth_bothsides(Tiles[i_Tile], PEs[i_PE], self.bandwidth['Tile to PE'])
+                        self.connect_with_bandwidth_bothsides(Tiles[i_Tile], PEs[i_PE], self.bandwidth['Tile to PE'],self.energy_cost['Tile to PE'])
 
                             
 

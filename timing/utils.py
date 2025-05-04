@@ -21,8 +21,9 @@ class SimpleTimedSimulation(Dataflow_parser):
         self.connection_info = connection_info
         self.timelimit = timelimit
         self.flag = flag
-        self.concat_time = 0
-        self.follow_concat = hardware.modules[0]
+        self.current_transfer = {}
+        self.current_node_transfer = {}
+        self.energy = 0
     def run(self):
         """Run the simulation and calculate execution time"""
         # Sort subfunctions
@@ -33,8 +34,9 @@ class SimpleTimedSimulation(Dataflow_parser):
         self.initialize()
         while not self.is_finished(self.timelimit):
             # Execute phase
-            self.concat_time = 0
             worst_excecute_time = 0
+            self.current_transfer = {}
+            self.current_node_transfer = {}
             for subfunction in self.model.subfunctions:
                 # Check if the subfunction is ready to execute
                 if self.is_calculating(subfunction):
@@ -52,14 +54,15 @@ class SimpleTimedSimulation(Dataflow_parser):
                 if subfunction.is_ready:
                     # Transfer data
                     transfer_time = self.transfer_one_step(subfunction)
-                    if transfer_time > worst_transfer_time:
-                        worst_transfer_time = transfer_time
             # Update transfer time
-            self.transfer_time += worst_transfer_time
-            self.transfer_time += self.concat_time
-            if self.flag: print('transfer time:', worst_transfer_time+self.concat_time)
+            if self.current_transfer.values():
+                worst_transfer_time = max(self.current_node_transfer.values())
+            if self.flag: print('transfer time:', worst_transfer_time)
             if self.flag: print('timestep:', self.execution_time+self.transfer_time)
-        print('Simulation finished at time:', self.execution_time+self.transfer_time)
+            self.transfer_time += worst_transfer_time
+        print('Simulation finished at time:', self.execution_time+self.transfer_time,'ns')
+        print('Total energy consumption:', self.energy/1000,'uJ')
+        return {'time': self.execution_time+self.transfer_time, 'energy': self.energy/1000}
 
 
 
@@ -80,6 +83,7 @@ class SimpleTimedSimulation(Dataflow_parser):
             self.available_tensors[tensor_str]='will be available'
         # Silence calculated subfuntion
         subfunction.has_calculated = True
+        self.energy += module.energy
         if self.flag: print('excecute subfunction:', subfunction.op_type.value)
         return time
 
@@ -94,7 +98,7 @@ class SimpleTimedSimulation(Dataflow_parser):
             # Check if output tensor is available to finish
             if self.coords_to_str(**tensor.tensor_id.coords) == self.output_tensor:
                 self.available_tensors[self.output_tensor] = 'available'
-                print('output tensor:', self.output_tensor)
+                #print('output tensor:', self.output_tensor)
                 return time_cost
             
             tensor_tuple = dataproc.get_coord_tuple(tensor.tensor_id)
@@ -124,18 +128,30 @@ class SimpleTimedSimulation(Dataflow_parser):
             for module_index in range(len(path)-1):
                 module1 = path[module_index]
                 module2 = path[module_index+1]
-                if self.reverse_mapping[target].op_type == OperationType.CONCAT:
-                    if target != self.follow_concat:
-                        self.concat_time = 0
-                    self.concat_time += module1.perform_transfer(module2, Dataflow(**data_flow))
-                    self.follow_concat = target
-                else: 
-                    time=module1.perform_transfer(module2, Dataflow(**data_flow))
-                    #print('transfer from:',module1.coords,'to:',module2.coords,'with data size:',data_size,'in time:',time)
-                    time_cost += time
+
+                time=module1.perform_transfer(module2, Dataflow(**data_flow))
+                # print('transfer from:',module1.coords,'to:',module2.coords,'with data size:',data_size,'in time:',time)
+                energy = module1.transfer_energy(module2, Dataflow(**data_flow))
+                self.energy += energy
+                transfer_path = self.coords_to_str(**module1.coords) + '->' + self.coords_to_str(**module2.coords)
+                if transfer_path not in self.current_transfer.keys():
+                    self.current_transfer[transfer_path] = time
+                else:
+                    self.current_transfer[transfer_path] += time
+                if module1 not in self.current_node_transfer.keys():
+                    self.current_node_transfer[module1] = time
+                else:
+                    self.current_node_transfer[module1] += time
+                if module2 not in self.current_node_transfer.keys():
+                    self.current_node_transfer[module2] = time
+                else:
+                    self.current_node_transfer[module2] += time
 
         # Reset subfunction state to indicate finished
         subfunction.is_ready = False
+        if self.current_transfer.values():
+
+            time_cost = max(self.current_transfer.values())
         return time_cost
 
 
@@ -164,14 +180,14 @@ class SimpleTimedSimulation(Dataflow_parser):
         for tensor in tensor_with_consumers:
             if tensor not in tensor_with_producers:
                 self.input_tensor = tensor
-                print('input tensor:', tensor)
+                #print('input tensor:', tensor)
             self.all_tensors.append(tensor)
             self.available_tensors[tensor] = 'not_available'
 
         for tensor in tensor_with_producers:
             if tensor not in tensor_with_consumers:
                 self.output_tensor = tensor
-                print('output tensor:', tensor)
+                #print('output tensor:', tensor)
                 self.available_tensors[tensor] = 'not_available'
             self.all_tensors.append(tensor)
         # Initialize the available tensors

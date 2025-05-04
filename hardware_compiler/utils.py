@@ -75,13 +75,13 @@ class Dataflow():
 
 class Module():
     """Base class for all modules"""
-    def __init__(self, hierarchy_type: HierarchyType, function_type: FunctionType, latency: float, **coords):
+    def __init__(self, hierarchy_type: HierarchyType, function_type: FunctionType, latency: float,energy:float, **coords):
         self.coords = coords
         self.hierarchy_type = hierarchy_type
         self.function_type = function_type
         self.receive = {}
         self.send = {}
-        self.energy = 0
+        self.energy = energy
         self.area = 0
         self.latency = latency
         self.visit_count = 0
@@ -150,6 +150,17 @@ class Module():
             time = data / bandwidth
             time += self.commu_latency
             return time
+        else:
+            raise KeyError(f"Module {other} not found in send modules.")
+        
+    def transfer_energy(self, other: 'Module', dataflow: Dataflow)->float:
+        """Perform data transfer to another module"""
+        if other in self.send:
+            # Perform transfer
+            energy = self.send[other].dataflow.get('energy_cost')
+            data = dataflow.get('data_transfer')
+            energy = energy * data
+            return energy
         else:
             raise KeyError(f"Module {other} not found in send modules.")
         
@@ -240,17 +251,17 @@ class HardwareCreator():
         """Create hardware discription. Abstract method to be implemented by subclasses"""
         return Hardware()
     
-    def connect_with_bandwidth_bothsides(self, module_1: Module, module_2: Module, bandwidth: int):
+    def connect_with_bandwidth_bothsides(self, module_1: Module, module_2: Module, bandwidth: int, energy_cost: float):
         """Connect two modules with a bandwidth"""
-        dataflow = Dataflow(**{'bandwidth': bandwidth,'data_accumulated':0,'energy_cost':0})
+        dataflow = Dataflow(**{'bandwidth': bandwidth,'data_accumulated':0,'energy_cost':energy_cost})
         module_1.regist_receive(module_2, dataflow)
         module_2.regist_send(module_1, dataflow)
         module_1.regist_send(module_2, dataflow)
         module_2.regist_receive(module_1, dataflow)
 
-    def connect_with_bandwidth_single(self, module_1: Module, module_2: Module, bandwidth: int):
+    def connect_with_bandwidth_single(self, module_1: Module, module_2: Module, bandwidth: int, energy_cost: float):
         """Connect two modules with a bandwidth"""
-        dataflow = Dataflow(**{'bandwidth': bandwidth,'data_accumulated':0,'energy_cost':0})
+        dataflow = Dataflow(**{'bandwidth': bandwidth,'data_accumulated':0,'energy_cost':energy_cost})
         module_1.regist_send(module_2, dataflow)
         module_2.regist_receive(module_1, dataflow)
 

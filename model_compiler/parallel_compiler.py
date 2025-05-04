@@ -79,7 +79,7 @@ class ParallelCompiler(CompilerBase):
             function: Gate projection function
             compiled_model: Compiled model to add subfunctions to
         """
-        print(f"Processing gate projection: {function.name}")
+        #print(f"Processing gate projection: {function.name}")
         if not function.shape:
             raise ValueError(f"Function {function.name} has no shape defined, required for MVM division")
             
@@ -238,7 +238,7 @@ class ParallelCompiler(CompilerBase):
             function: Up projection function
             compiled_model: Compiled model to add subfunctions to
         """
-        print(f"Processing up projection: {function.name}")
+        #print(f"Processing up projection: {function.name}")
         if not function.shape:
             raise ValueError(f"Function {function.name} has no shape defined, required for MVM division")
             
@@ -392,7 +392,7 @@ class ParallelCompiler(CompilerBase):
             function: Down projection function
             compiled_model: Compiled model to add subfunctions to
         """
-        print(f"Processing down projection: {function.name}")
+        #print(f"Processing down projection: {function.name}")
         # Use base MVM division logic but with specific metadata for down projection
         if not function.shape:
             raise ValueError(f"Function {function.name} has no shape defined, required for MVM division")
@@ -520,7 +520,7 @@ class ParallelCompiler(CompilerBase):
             function: GLU function
             compiled_model: Compiled model to add subfunctions to
         """
-        print(f"Processing GLU operation: {function.name}")
+        #print(f"Processing GLU operation: {function.name}")
         # Use elementwise division logic for GLU
         base_coords = function.coords.copy()
         
@@ -611,7 +611,7 @@ class ParallelCompiler(CompilerBase):
             function: Activation function
             compiled_model: Compiled model to add subfunctions to
         """
-        print(f"Processing activation: {function.name}")
+        #print(f"Processing activation: {function.name}")
         # Use elementwise division logic for activation
         base_coords = function.coords.copy()
         
@@ -685,7 +685,7 @@ class ParallelCompiler(CompilerBase):
             function: Trivial copy function
             compiled_model: Compiled model to add subfunctions to
         """
-        print(f"Processing trivial copy: {function.name}")
+        #print(f"Processing trivial copy: {function.name}")
         # Use elementwise division logic for trivial copy
         self._divide_generic_elementwise(function, compiled_model)
     
@@ -697,7 +697,7 @@ class ParallelCompiler(CompilerBase):
             function: Dot product function
             compiled_model: Compiled model to add subfunctions to
         """
-        print(f"Processing dot product: {function.name}")
+        #print(f"Processing dot product: {function.name}")
         # Use elementwise division logic for dot product
         self._divide_generic_elementwise(function, compiled_model)
     
@@ -709,7 +709,7 @@ class ParallelCompiler(CompilerBase):
             function: Function to process
             compiled_model: Compiled model to add subfunctions to
         """
-        print(f"Processing generic function: {function.name} with op type: {function.op_type}")
+        #print(f"Processing generic function: {function.name} with op type: {function.op_type}")
         if function.op_type == OperationType.MVM:
             self._divide_generic_mvm(function, compiled_model)
         else:
