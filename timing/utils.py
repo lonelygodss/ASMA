@@ -24,6 +24,8 @@ class SimpleTimedSimulation(Dataflow_parser):
         self.current_transfer = {}
         self.current_node_transfer = {}
         self.energy = 0
+        self.energy_step = 0
+        self.tempflag = False
     def run(self):
         """Run the simulation and calculate execution time"""
         # Sort subfunctions
@@ -34,7 +36,9 @@ class SimpleTimedSimulation(Dataflow_parser):
         self.initialize()
         while not self.is_finished(self.timelimit):
             # Execute phase
+            if self.flag: self.tempflag = True
             worst_excecute_time = 0
+            self.energy_step = 0
             self.current_transfer = {}
             self.current_node_transfer = {}
             for subfunction in self.model.subfunctions:
@@ -46,7 +50,9 @@ class SimpleTimedSimulation(Dataflow_parser):
                         worst_excecute_time = excecute_time
             # Update execution time
             self.execution_time += worst_excecute_time
-            if self.flag: print('execution time:', worst_excecute_time)
+            if self.flag: 
+                print('execution time:', worst_excecute_time)
+                print('execution energy:', self.energy_step)
             # Data Transfer phase
             worst_transfer_time = 0
             for subfunction in self.model.subfunctions:
@@ -57,8 +63,9 @@ class SimpleTimedSimulation(Dataflow_parser):
             # Update transfer time
             if self.current_transfer.values():
                 worst_transfer_time = max(self.current_node_transfer.values())
-            if self.flag: print('transfer time:', worst_transfer_time)
-            if self.flag: print('timestep:', self.execution_time+self.transfer_time)
+            if self.flag: 
+                print('transfer time:', worst_transfer_time)
+                print('transfer energy:', self.energy_step)
             self.transfer_time += worst_transfer_time
         print('Simulation finished at time:', self.execution_time+self.transfer_time,'ns')
         print('Total energy consumption:', self.energy/1000,'uJ')
@@ -84,7 +91,10 @@ class SimpleTimedSimulation(Dataflow_parser):
         # Silence calculated subfuntion
         subfunction.has_calculated = True
         self.energy += module.energy
-        if self.flag: print('excecute subfunction:', subfunction.op_type.value)
+        self.energy_step += module.energy
+        if self.tempflag: 
+            print('excecute subfunction:', subfunction.op_type.value)
+            self.tempflag = False
         return time
 
     def transfer_one_step(self, subfunction: SubFunction)->float:
@@ -130,9 +140,10 @@ class SimpleTimedSimulation(Dataflow_parser):
                 module2 = path[module_index+1]
 
                 time=module1.perform_transfer(module2, Dataflow(**data_flow))
-                # print('transfer from:',module1.coords,'to:',module2.coords,'with data size:',data_size,'in time:',time)
+                #print('transfer from:',module1.coords,'to:',module2.coords,'with data size:',data_size,'in time:',time)
                 energy = module1.transfer_energy(module2, Dataflow(**data_flow))
                 self.energy += energy
+                self.energy_step += energy
                 transfer_path = self.coords_to_str(**module1.coords) + '->' + self.coords_to_str(**module2.coords)
                 if transfer_path not in self.current_transfer.keys():
                     self.current_transfer[transfer_path] = time
@@ -158,7 +169,7 @@ class SimpleTimedSimulation(Dataflow_parser):
 
         
 
-        pass
+        
     def is_calculating(self, subfunction: SubFunction)->bool:
         """Check if the subfunction is calculating"""
         # Check if the subfunction is calculating

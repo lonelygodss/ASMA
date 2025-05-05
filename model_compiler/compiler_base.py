@@ -175,6 +175,41 @@ class CompilerBase:
         
         return add_func
     
+    def _create_add_concat_function(self, base_coords: Dict, input_tensor_ids: List[Tuple[TensorId, Dict]],
+                            output_tensor_id: TensorId, output_size: Dict, 
+                            compiled_model: CompiledModel, add_idx: List) -> SubFunction:
+        """
+        Create an addition function to combine multiple inputs
+        
+        Args:
+            base_coords: Base coordinates for this function context
+            input_tensor_ids: List of (tensor_id, size_params) tuples for inputs
+            output_tensor_id: Output tensor ID for addition result
+            output_size: Size parameters for output tensor
+            compiled_model: Compiled model to add the function to
+            add_idx: Index for this add function (for positioning)
+            
+        Returns:
+            Created add function
+        """
+        # Create add function
+        add_func = self._create_subfunction(base_coords, OperationType.CONCAT, i=add_idx[0], j=add_idx[1])
+        
+        # Set shape if size_h and size_v are available
+        if 'size_h' in output_size and 'size_v' in output_size:
+            add_func.set_shape((output_size['size_v'], output_size['size_h']))
+        
+        # Add input tensors
+        for tensor_id, size_params in input_tensor_ids:
+            add_func.add_input_tensor(tensor_id, **size_params)
+        
+        # Add output tensor
+        add_func.add_output_tensor(output_tensor_id, **output_size)
+        
+        # Add to compiled model
+        compiled_model.add_subfunction(add_func)
+        
+        return add_func
     def find_subfunction(self, compiled_model: CompiledModel, **criteria) -> Optional[SubFunction]:
         """
         Find a specific subfunction in the compiled model based on search criteria.

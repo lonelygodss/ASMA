@@ -76,8 +76,9 @@ class BaselineMapping(Map_Compiledmodel_to_Hardware):
                 if module.coords['PE'] == 3:
                     occupy = 'activation_calculate'
         elif subfunction.op_type == OperationType.ADD:
-            if module.hierarchy_type == HierarchyType.SUBTILE.value:
-                occupy = 'addition'
+            if module.hierarchy_type == HierarchyType.PE.value and module.function_type == FunctionType.ADD.value:
+                if module.coords['PE'] == 5:
+                    occupy = 'addition'
         elif subfunction.op_type == OperationType.DISTRIBUTE:
             if module.hierarchy_type == HierarchyType.TILE.value:
                 occupy = 'distribution'
@@ -103,10 +104,10 @@ class BaselineMapping(Map_Compiledmodel_to_Hardware):
                     module.available_map = {
                         'activation_calculate': True
                     }
-            elif module.hierarchy_type == HierarchyType.SUBTILE.value:
-                module.available_map = {
-                    'addition': True
-                }
+                elif module.function_type == FunctionType.ADD.value:
+                    module.available_map = {
+                        'addition': True
+                    }
             elif module.hierarchy_type == HierarchyType.TILE.value:
                 module.available_map = {
                     'distribution': True,

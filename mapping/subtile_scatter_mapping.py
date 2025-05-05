@@ -1,7 +1,7 @@
 from typing import List, Dict, Tuple, Set, Optional, Any, Union, Callable, Sequence
 from mapping.utils import *
 
-class TrivialMapping(Map_Compiledmodel_to_Hardware):
+class ScatterMapping(Map_Compiledmodel_to_Hardware):
     """Trivial mapping of compiled model to hardware"""
     def __init__(self, compiled_model: CompiledModel, hardware: Hardware):
         super().__init__(compiled_model, hardware)
@@ -20,7 +20,7 @@ class TrivialMapping(Map_Compiledmodel_to_Hardware):
             # and create a mapping entry
             hardware_module = self.map_available_module(subfunction)
             if not hardware_module:
-            #     print('successfully mapped subfunction:', subfunction.coords, 'to hardware module:', hardware_module.coords)
+            #     print('successfully mapped subfunction:', subfunction.coords,subfunction.op_type, 'to hardware module:', hardware_module.coords)
             # else:
                 print('failed to map subfunction:', subfunction.coords, 'function type',subfunction.op_type.value)
             
@@ -36,14 +36,9 @@ class TrivialMapping(Map_Compiledmodel_to_Hardware):
                     self.mapping[subfunction] = module
                     self.reverse_mapping[module] = subfunction
                     module.available_map[occupy] = False
-                    self.subtile_entry = module.coords['SUBTILE']
                     self.tile_entry = module.coords['TILE']
                     return module
-                elif module.hierarchy_type == HierarchyType.SUBTILE.value:
-                    if module.coords['SUBTILE'] == self.subtile_entry and module.coords['TILE'] == self.tile_entry:
-                        self.mapping[subfunction] = module
-                        self.reverse_mapping[module] = subfunction
-                        return module
+
                 elif module.hierarchy_type == HierarchyType.TILE.value:
                     if module.coords['TILE'] == self.tile_entry:
                         self.mapping[subfunction] = module
@@ -79,6 +74,7 @@ class TrivialMapping(Map_Compiledmodel_to_Hardware):
             if module.hierarchy_type == HierarchyType.PE.value and module.function_type == FunctionType.ADD.value:
                 if module.coords['PE'] == 5 or module.coords['PE'] == 6:
                     occupy = 'addition'
+
         elif subfunction.op_type == OperationType.DISTRIBUTE:
             if module.hierarchy_type == HierarchyType.TILE.value:
                 occupy = 'distribution'
@@ -115,7 +111,7 @@ class TrivialMapping(Map_Compiledmodel_to_Hardware):
                 }
 
     def initialize_sequences(self):
-        subfunction_sequence = ['n','m','k','j']
+        subfunction_sequence = ['j','k','m','n']
         module_sequence = ['ACCELERATOR','BANK','TILE','SUBTILE','PE']
 
         self.compiled_model.subfunctions.sort(key = lambda o: tuple(o.coords[k] for k in subfunction_sequence))
@@ -124,6 +120,8 @@ class TrivialMapping(Map_Compiledmodel_to_Hardware):
         # print('========after sorting========')
         # for module in self.hardware.modules:
         #     print('module:', module.coords)
+        # for subfunc in self.compiled_model.subfunctions:
+        #     print('subfunction:', subfunc.op_type,'coords:',subfunc.coords)
 
     def sort_by_hierarchy(objs: List[Any], key_order: Sequence[str]) -> List[Any]:
         """

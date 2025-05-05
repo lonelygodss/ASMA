@@ -3,10 +3,11 @@ from model_compiler.parallel_compiler import ParallelCompiler
 from model_compiler.function_wise_compiler import FunctionWiseCompiler
 from model_compiler.basline_compiler import BaselineCompiler
 from model_compiler.scatter_compiler import ScatterCompiler
+from model_compiler.scatter_parallel_compiler import ScatterParallelCompiler
 import model_compiler.metadata_proess as dataproc
 from hardware_compiler.utils import *
 from hardware_compiler.basic_hardware import *
-from mapping.subtile_parallel_mapping import TrivialMapping
+from mapping.subtile_scatter_mapping import ScatterMapping
 from timing.utils import SimpleTimedSimulation
 from evaluation.utils import Dataflow_parser
 
@@ -25,7 +26,6 @@ def main():
     array_v = 256      # Vertical size of CIM array
     
     logflag = False
-
     print("ffn_dim:", ffn_dim)
     # Create model
     model = create_glu_ffn_model(hidden_dim, ffn_dim, layer_idx)
@@ -55,10 +55,9 @@ def main():
     
     print("Hardware creation and visualization complete!")
     
-    mapping = TrivialMapping(compiled_model, hardware)
+    mapping = ScatterMapping(compiled_model, hardware)
     mapping.map()
     print("Mapping complete!")
-
     connection_info = dataproc.parse_compute_graph(compiled_model,extract_paths=False)
     print("Compute graph parsing complete!")
 

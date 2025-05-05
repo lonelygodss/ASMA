@@ -5,7 +5,7 @@ from model_compiler.compiler_base import CompilerBase
 from typing import List, Dict, Tuple, Optional
 
 
-class ScatterCompiler(CompilerBase):
+class ScatterParallelCompiler(CompilerBase):
     """
     Compiler that handles each function in the GLU-FFN model with specialized methods.
     This gives more granular control over the compilation process for different function types.
@@ -399,77 +399,117 @@ class ScatterCompiler(CompilerBase):
         input_dim, output_dim = function.shape
         base_coords = function.coords.copy()
         
+        # Calculate number of divisions needed
+        h_divisions = (output_dim + self.array_v - 1) // self.array_v
+        v_divisions = (input_dim + self.array_h - 1) // self.array_h
         
         # Step 1: Create compute subfunctions for each division
         compute_subfuncs = []
         compute_output_tensors = []
         
-        for i in range(self.v_divisions):
+        for i in range(self.h_divisions):
+            row_compute_subfuncs = []
+            row_output_tensors = []
             
-            for j in range(self.h_divisions):
+            for j in range(self.v_divisions):
                 # Calculate the actual dimensions of this submatrix
-                compute_index = j*self.v_divisions+i
-                start_v = compute_index * self.array_h/self.v_divisions
-                end_v = min((compute_index + 1) * self.array_v/self.v_divisions, input_dim)
-
+                compute_index = i*self.v_divisions+j
+                start_h = j * self.array_v
+                end_h = min((j + 1) * self.array_v, output_dim)
+                start_v = i * self.array_h
+                end_v = min((i + 1) * self.array_h, input_dim)
                 
-                slice_h = output_dim
-                slice_v = end_v-start_v
+                slice_h = end_h - start_h
+                slice_v = end_v - start_v
                 
                 # Create subfunction
-
+                compute_i = i + 1  # Base index for MVM computation
+                compute_j = j + 1  # Base index for MVM computation
                 subfunc = self._create_subfunction(
                     base_coords, 
                     OperationType.MVM, 
                     i=1, 
-                    j=compute_index+1
+                    j=compute_index
                 )
                 subfunc.set_shape((slice_v, slice_h))
                 subfunc.set_parent(function)
-                
                 # Input tensor ID for this slice
-                glu_coords = base_coords.copy()
-                glu_coords['i'] = 1
-                glu_coords['j'] = compute_index+1
-                glu_coords['k'] = 1
-                glu_coords['m'] = 3
-                glu_coords['n'] = 1
-                glu_subfunction = self.find_subfunction(
-                    compiled_model,
-                    coords=glu_coords,
-                    op_type=OperationType.GLU,
-                )
-                input_tensors = glu_subfunction.output_tensors
-                for tensor in input_tensors:
-                    subfunc.add_input_tensor(tensor.tensor_id, **tensor.size_params)
+                for j1 in range(self.v_divisions):
+                    compute_index1 = i*self.v_divisions+j1
+                    glu_coords = base_coords.copy()
+                    glu_coords['i'] = 1
+                    glu_coords['j'] = compute_index1+1
+                    glu_coords['k'] = 1
+                    glu_coords['m'] = 3
+                    glu_coords['n'] = 1
+                    glu_subfunction = self.find_subfunction(
+                        compiled_model,
+                        coords=glu_coords,
+                        op_type=OperationType.GLU,
+                    )
+                    input_tensors = glu_subfunction.output_tensors
+                    for tensor in input_tensors:
+                        subfunc.add_input_tensor(tensor.tensor_id, **tensor.size_params)
                                 
                 # Output tensor ID for compute result
-                output_tensor_id = self._create_tensor_id(base_coords, i=1, j=compute_index+1)
+                output_tensor_id = self._create_tensor_id(base_coords, i=compute_i, j=compute_j)
                 subfunc.add_output_tensor(output_tensor_id, size_h=slice_h, size_v=1)
                 
                 # Store for later reference
-                compute_subfuncs.append(subfunc)
-                compute_output_tensors.append((output_tensor_id, {'size_h': slice_h, 'size_v': 1}))
+                row_compute_subfuncs.append(subfunc)
+                row_output_tensors.append((output_tensor_id, {'size_h': slice_h, 'size_v': 1}))
                 
                 # Add to compiled model
                 compiled_model.add_subfunction(subfunc)
             
+            compute_subfuncs.append(row_compute_subfuncs)
+            compute_output_tensors.append(row_output_tensors)
         
         # Step 3: Create addition functions for each column to combine vertical slices
+        add_output_tensors = []
         
-
-        add_output_tensor_id = self._create_tensor_id(base_coords, i=0, j=1)
-        output_size = {'size_h': slice_h, 'size_v': 1}
+        for j in range(h_divisions):
+            start_h = j * self.array_v
+            end_h = min((j + 1) * self.array_h, output_dim)
+            slice_h = end_h - start_h
+            add_j = j + 1  # Base index for addition operations
+            
+            # Collect input tensors for this column's addition
+            add_input_tensors = []
+            for i in range(v_divisions):
+                compute_i = i + 1
+                compute_j = j + 1
+                output_tensor_id = self._create_tensor_id(base_coords, i=compute_i, j=compute_j)
+                add_input_tensors.append((output_tensor_id, {'size_h': slice_h, 'size_v': 1}))
+            
+            # Create output tensor ID for addition
+            add_output_tensor_id = self._create_tensor_id(base_coords, i=0, j=add_j)
+            output_size = {'size_h': slice_h, 'size_v': 1}
+            
+            # Create addition function
+            self._create_add_concat_function(
+                base_coords,
+                add_input_tensors,
+                add_output_tensor_id,
+                output_size,
+                compiled_model,
+                [0,j+1]
+            )
+            
+            # Store for concat
+            add_output_tensors.append((add_output_tensor_id, output_size))
         
-        # Create addition function
+        # Step 4: Create concatenation function to combine horizontal slices
+        concat_output_tensor_id = self._create_tensor_id(base_coords, i=0, j=0)
+        concat_output_size = {'size_h': output_dim, 'size_v': 1}
+        
         self._create_concat_function(
             base_coords,
-            compute_output_tensors,
-            add_output_tensor_id,
-            output_size,
+            add_output_tensors,
+            concat_output_tensor_id,
+            concat_output_size,
             compiled_model
         )
-        
 
         
         

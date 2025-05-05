@@ -25,8 +25,8 @@ def main():
     array_v = 512      # Vertical size of CIM array
     
     logflag = False
-    for i in range(7):
-        ffn_dim = 2**(i+9)
+    for i in range(1):
+        ffn_dim = 2**(i+13)
         print("ffn_dim:", ffn_dim)
         # Create model
         model = create_glu_ffn_model(hidden_dim, ffn_dim, layer_idx)
@@ -63,7 +63,7 @@ def main():
         connection_info = dataproc.parse_compute_graph(compiled_model,extract_paths=False)
         print("Compute graph parsing complete!")
 
-        simulator = SimpleTimedSimulation(compiled_model, hardware, mapping.mapping,mapping.reverse_mapping,connection_info['data_flow_paths'],connection_info,100000,False)
+        simulator = SimpleTimedSimulation(compiled_model, hardware, mapping.mapping,mapping.reverse_mapping,connection_info['data_flow_paths'],connection_info,100000,True)
         simulator.run()
         print("Simulation complete!")
         # parser = Dataflow_parser(compiled_model, hardware, mapping.mapping, connection_info['data_flow_paths'])
