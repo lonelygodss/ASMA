@@ -22,8 +22,8 @@ from datetime import datetime
 def main():
     # Example usage
     # Define model parameters
-    hidden_dim = 2048  # Model dimension (e.g., for Llama 7B)
-    ffn_dim = 11008    # FFN dimension (e.g., for Llama 7B)
+    hidden_dim = 1024  # Model dimension (e.g., for Llama 7B)
+    ffn_dim = 16384    # FFN dimension (e.g., for Llama 7B)
     layer_idx = 1      # First decoder layer
     
     # Define hardware constraints
@@ -36,13 +36,13 @@ def main():
     results.append(["Compiler", "Array Size", "Hidden Dimension", "Time", "Energy"])
     
     logflag = False
-    for n in range(4):
+    for n in range(3):
         array_h = 2**(n+8)
         array_v = 2**(n+8)
         print("array_size:", array_h)
-        for i in range(5):
-            ffn_dim = 2**(i+10)
-            print("ffn_dim:", ffn_dim)
+        for i in range(4):
+            hidden_dim = 2**(i+10)
+            print("hidden_dim:", hidden_dim)
             # Create model
             model = create_glu_ffn_model(hidden_dim, ffn_dim, layer_idx)
 
@@ -74,7 +74,7 @@ def main():
             print("Simulation complete!")
             
             # Store baseline results
-            results.append(["b_b", array_h, ffn_dim, time, energy])
+            results.append(["b_b", array_h, hidden_dim, time, energy])
             
     #==============================================
             hierarchy = {
@@ -104,7 +104,7 @@ def main():
             print("Simulation complete!")
             
             # Store ParallelCompiler results
-            results.append(["s_p", array_h, ffn_dim, time, energy])
+            results.append(["s_p", array_h, hidden_dim, time, energy])
     #==============================================
             model = create_glu_ffn_model(hidden_dim, ffn_dim, layer_idx)
             compiler = ScatterCompiler(array_h, array_v)
@@ -128,7 +128,7 @@ def main():
             print("Simulation complete!")
             
             # Store 3rd results
-            results.append(["s_s", array_h, ffn_dim, time, energy])
+            results.append(["s_s", array_h, hidden_dim, time, energy])
     #==============================================
             compiler = ScatterParallelCompiler(array_h, array_v)                        
             compiled_model = compiler.divide_model(model)
@@ -149,7 +149,7 @@ def main():
             print("Simulation complete!")
             
             # Store 4th results
-            results.append(["s_sp", array_h, ffn_dim, time, energy])
+            results.append(["s_sp", array_h, hidden_dim, time, energy])
 
     # Export results to CSV file
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
