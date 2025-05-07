@@ -17,13 +17,13 @@ from timing.utils import SimpleTimedSimulation
 def main():
     # Example usage
     # Define model parameters
-    hidden_dim = 2048  # Model dimension (e.g., for Llama 7B)
+    hidden_dim = 4096  # Model dimension (e.g., for Llama 7B)
     ffn_dim = 11008    # FFN dimension (e.g., for Llama 7B)
     layer_idx = 1      # First decoder layer
     
     # Define hardware constraints
-    array_h = 256      # Horizontal size of CIM array
-    array_v = 256      # Vertical size of CIM array
+    array_h = 768      # Horizontal size of CIM array
+    array_v = 768      # Vertical size of CIM array
     
         # version control
     filename = "baseline/"

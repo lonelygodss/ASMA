@@ -11,12 +11,12 @@ def main():
     # Example usage
     # Define model parameters
     hidden_dim = 4096  # Model dimension (e.g., for Llama 7B)
-    ffn_dim = 8192    # FFN dimension (e.g., for Llama 7B)
+    ffn_dim = 11008    # FFN dimension (e.g., for Llama 7B)
     layer_idx = 1      # First decoder layer
     
     # Define hardware constraints
-    array_h = 2048      # Horizontal size of CIM array
-    array_v = 2048      # Vertical size of CIM array
+    array_h = 1024      # Horizontal size of CIM array
+    array_v = 1024      # Vertical size of CIM array
     
     # version control
     filename = "scatter/"
@@ -34,7 +34,7 @@ def main():
     # print("\n" + "="*80 + "\n")
     
     # Compile model
-    compiler = ScatterParallelCompiler(array_h, array_v)
+    compiler = ScatterCompiler(array_h, array_v)
     compiled_model = compiler.divide_model(model)
     
     print("Compiled Model:")

@@ -327,7 +327,7 @@ def plot_combined_comparison(hidden_time, hidden_energy, ffn_time, ffn_energy, b
                ncol=len(compilers),
                frameon=True,
                fancybox=True,
-               shadow=True,
+               shadow=False,
                fontsize=12)
 
     # Save if requested
