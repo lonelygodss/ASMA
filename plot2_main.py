@@ -90,7 +90,7 @@ def plot_normalized_pipeline_metrics(stacked_data, baseline_compiler='bb', save_
     ax1 = axes[0]
     
     # Set log scale for y-axis
-    ax1.set_yscale('log')
+    ax1.set_yscale('linear')
     
     # Set y-axis formatter to show 1 decimal place
     ax1.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
@@ -152,7 +152,7 @@ def plot_normalized_pipeline_metrics(stacked_data, baseline_compiler='bb', save_
     ax2 = axes[1]
     
     # Set log scale for y-axis
-    ax2.set_yscale('log')
+    ax2.set_yscale('linear')
     
     # Set y-axis formatter to show 1 decimal place
     ax2.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))

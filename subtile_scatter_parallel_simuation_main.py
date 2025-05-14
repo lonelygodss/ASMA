@@ -17,13 +17,13 @@ from evaluation.utils import Dataflow_parser
 def main():
     # Example usage
     # Define model parameters
-    hidden_dim = 4096  # Model dimension (e.g., for Llama 7B)
-    ffn_dim = 11008    # FFN dimension (e.g., for Llama 7B)
+    hidden_dim = 8192  # Model dimension (e.g., for Llama 7B)
+    ffn_dim = 1024    # FFN dimension (e.g., for Llama 7B)
     layer_idx = 1      # First decoder layer
     
     # Define hardware constraints
-    array_h = 768      # Horizontal size of CIM array
-    array_v = 768      # Vertical size of CIM array
+    array_h = 1024      # Horizontal size of CIM array
+    array_v = 1024      # Vertical size of CIM array
     
     logflag = False
     print("ffn_dim:", ffn_dim)
@@ -58,7 +58,7 @@ def main():
     mapping = ScatterMapping(compiled_model, hardware)
     mapping.map()
     print("Mapping complete!")
-    connection_info = dataproc.parse_compute_graph(compiled_model,extract_paths=False)
+    connection_info = dataproc.parse_compute_graph(compiled_model,extract_paths=True)
     print("Compute graph parsing complete!")
 
     simulator = SimpleTimedSimulation(compiled_model, hardware, mapping.mapping,mapping.reverse_mapping, connection_info['data_flow_paths'],connection_info,100000,True)

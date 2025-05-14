@@ -34,7 +34,6 @@ def main():
     results = []
     # Add header row
     results.append(["Compiler", "Array Size", "Hidden Dimension", "Time", "Energy"])
-    
     logflag = False
     for n in range(3):
         array_h = 2**(n+8)

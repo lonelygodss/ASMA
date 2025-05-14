@@ -22,8 +22,8 @@ def main():
     layer_idx = 1      # First decoder layer
     
     # Define hardware constraints
-    array_h = 768      # Horizontal size of CIM array
-    array_v = 768      # Vertical size of CIM array
+    array_h = 2048      # Horizontal size of CIM array
+    array_v = 2048      # Vertical size of CIM array
     
         # version control
     filename = "baseline/"
@@ -49,9 +49,9 @@ def main():
 
     hierarchy = {
         HierarchyType.ACCELERATOR.value: 1,
-        HierarchyType.BANK.value: 4,
-        HierarchyType.TILE.value: 64,
-        HierarchyType.PE.value: 16
+        HierarchyType.BANK.value: 1,
+        HierarchyType.TILE.value: 3,
+        HierarchyType.PE.value: 12
     }
     creator = BaselineHardwareCreator(array_h, array_v, **hierarchy)
     hardware = creator.create_hardware(logflag)
@@ -63,15 +63,15 @@ def main():
     mapping.map()
     print("Mapping complete!")
 
-    connection_info = dataproc.parse_compute_graph(compiled_model,False,extract_paths=False)
+    connection_info = dataproc.parse_compute_graph(compiled_model,False,extract_paths=True)
     print("Compute graph parsing complete!")
 
-    simulator = SimpleTimedSimulation(compiled_model, hardware, mapping.mapping,mapping.reverse_mapping, connection_info['data_flow_paths'],connection_info,1000000,True)
-    simulator.run() 
-    print("Simulation complete!")
+    # simulator = SimpleTimedSimulation(compiled_model, hardware, mapping.mapping,mapping.reverse_mapping, connection_info['data_flow_paths'],connection_info,1000000,True)
+    # simulator.run() 
+    # print("Simulation complete!")
     
-    # parser = Dataflow_parser(compiled_model, hardware, mapping.mapping, connection_info['data_flow_paths'])
-    # parser.parse_dataflow(logflag)
+    parser = Dataflow_parser(compiled_model, hardware, mapping.mapping, connection_info['data_flow_paths'])
+    parser.parse_dataflow(logflag)
 
 
 if __name__ == "__main__":
