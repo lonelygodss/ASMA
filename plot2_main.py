@@ -329,7 +329,7 @@ def plot_normalized_pipeline_metrics(stacked_data, baseline_compiler='bb', save_
     
     # Save if requested
     if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.savefig(save_path, dpi=600, bbox_inches='tight')
     
     # Show the figure
     plt.show()

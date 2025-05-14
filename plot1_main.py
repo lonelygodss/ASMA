@@ -88,7 +88,7 @@ def plot_combined_comparison(hidden_time, hidden_energy, ffn_time, ffn_energy, b
                 if compiler == baseline_compiler:
                     text = f"{baseline_value:.2e}" if baseline_value >= 1000 else f"{baseline_value:.2f}"
                     ax_time.text(positions[i] + offset, normalized_value + 0.05, text, 
-                           ha='center', va='bottom', fontsize=6, rotation=45)
+                           ha='center', va='bottom', fontsize=7, rotation=45)
             
             # Create bars
             ax_time.bar(positions + offset, normalized_values, 
@@ -151,7 +151,7 @@ def plot_combined_comparison(hidden_time, hidden_energy, ffn_time, ffn_energy, b
                 if compiler == baseline_compiler:
                     text = f"{baseline_value:.2e}" if baseline_value >= 1000 else f"{baseline_value:.2f}"
                     ax_energy.text(positions[i] + offset, normalized_value + 0.05, text, 
-                           ha='center', va='bottom', fontsize=6, rotation=45)
+                           ha='center', va='bottom', fontsize=7, rotation=45)
             
             # Create bars 
             ax_energy.bar(positions + offset, normalized_values, 
@@ -223,7 +223,7 @@ def plot_combined_comparison(hidden_time, hidden_energy, ffn_time, ffn_energy, b
                 if compiler == baseline_compiler:
                     text = f"{baseline_value:.2e}" if baseline_value >= 1000 else f"{baseline_value:.2f}"
                     ax_time.text(positions[i] + offset, normalized_value + 0.05, text, 
-                           ha='center', va='bottom', fontsize=6, rotation=45)
+                           ha='center', va='bottom', fontsize=7, rotation=45)
             
             # Create bars
             ax_time.bar(positions + offset, normalized_values, 
@@ -281,7 +281,7 @@ def plot_combined_comparison(hidden_time, hidden_energy, ffn_time, ffn_energy, b
                 if compiler == baseline_compiler:
                     text = f"{baseline_value:.2e}" if baseline_value >= 1000 else f"{baseline_value:.2f}"
                     ax_energy.text(positions[i] + offset, normalized_value + 0.05, text, 
-                           ha='center', va='bottom', fontsize=6, rotation=45)
+                           ha='center', va='bottom', fontsize=7, rotation=45)
             
             # Create bars 
             ax_energy.bar(positions + offset, normalized_values, 
@@ -328,11 +328,11 @@ def plot_combined_comparison(hidden_time, hidden_energy, ffn_time, ffn_energy, b
                frameon=True,
                fancybox=True,
                shadow=False,
-               fontsize=12)
+               fontsize=15)
 
     # Save if requested
     if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.savefig(save_path, dpi=600, bbox_inches='tight')
     
     # Show the figure
     plt.show()
