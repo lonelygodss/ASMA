@@ -13,7 +13,7 @@ from mapping.subtile_scatter_mapping import ScatterMapping
 from mapping.baseline_baseline_mapping import BaselineMapping
 from evaluation.utils import Dataflow_parser
 from timing.utils import SimpleTimedSimulation
-from evaluation.visualize import visualize_multiple_heat_maps
+from evaluation.visualize import *
 
 
 # This main compile with BaselineCompiler, create basic_hardware, and map with baseline mapping
@@ -141,9 +141,50 @@ def main():
     [scatter_parallel_data_heatmap,scatter_parallel_latency_map] = parser.parse_dataflow(logflag)
 
     heatmaplist1 = [parallel_data_heatmap, scatter_data_heatmap, scatter_parallel_data_heatmap]
-    heatmaplist2 = [parallel_latency_heatmap,scatter_latency_heatmap,scatter_parallel_latency_map]
-    visualize_multiple_heat_maps(heatmaplist1,log_scale= True,show=True)
+    # heatmaplist2 = [parallel_latency_heatmap,scatter_latency_heatmap,scatter_parallel_latency_map]
+    # visualize_multiple_heat_maps(heatmaplist1,log_scale= True,show=True, save_path = "heatmap-3")
+    # visualize_heat_map(baseline_data_heatmap,log_scale=True,show=True,save_path="heatmap-1")
+    fig_combined = visualize_combined_heat_maps(
+    baseline_heatmap=baseline_data_heatmap,
+    comparison_heatmaps=heatmaplist1,
+    baseline_title="Baseline", # Custom title for baseline
+    comparison_titles=None, # Custom titles for comparison plots
+    main_title="Full Dataflow Analysis",
+    log_scale=True,
+    show=True,
+    zeros_black=True,
+    cmap='coolwarm', # Example: using 'viridis' colormap
+    save_path="heatmap_combined_analysis" # Will save as .png and .pdf
+)
+    list_of_all_heatmaps = [
+        baseline_data_heatmap,
+        parallel_data_heatmap,
+        scatter_data_heatmap,
+        scatter_parallel_data_heatmap
+    ]
 
+    # Create a corresponding list of names for each heatmap
+    list_of_heatmap_names = [
+        "Baseline",
+        "Standard-Parallel",
+        "Scatter-Parallel",
+        "Mutual-Parallel"
+    ]
+
+    # Define the desired output path for your CSV file
+    output_statistics_csv = "heatmap_analysis_statistics.csv"
+
+    # Call the function to calculate and save statistics
+    # success = save_heatmap_statistics_to_csv(
+    #     list_of_all_heatmaps,
+    #     list_of_heatmap_names,
+    #     output_statistics_csv
+    # )
+
+    # if success:
+    #     print("Statistics CSV generated successfully.")
+    # else:
+    #     print("Failed to generate statistics CSV.")
 
 
 if __name__ == "__main__":
